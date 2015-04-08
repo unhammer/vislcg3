@@ -50,6 +50,8 @@ namespace CG3 {
 		void printSet(UFILE *output, const Set& curset);
 		void printRule(UFILE *to, const Rule& rule);
 		void printContextualTest(UFILE *to, const ContextualTest& test);
+		typedef std::set<UString> set_name_map_t;
+		set_name_map_t unified_sets;
 	};
 }
 
