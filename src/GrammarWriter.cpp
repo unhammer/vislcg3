@@ -32,8 +32,110 @@ GrammarWriter::GrammarWriter(Grammar& res, UFILE *ux_err) {
 	grammar = &res;
 }
 
+GrammarWriter::GrammarWriter(Grammar& res, UFILE *ux_err, UStringMap* relabels) {
+	statistics = false;
+	ux_stderr = ux_err;
+	grammar = &res;
+	relabel_rules = relabels;
+}
+
 GrammarWriter::~GrammarWriter() {
 	grammar = 0;
+}
+
+void GrammarWriter::printList(UFILE *output, const Set& curset) {
+	if(relabel_rules) {
+		return printListRelabelled(output, curset);
+	}
+
+	u_fprintf(output, "LIST %S = ", curset.name.c_str());
+	std::set<TagVector> tagsets[] = { trie_getTagsOrdered(curset.trie), trie_getTagsOrdered(curset.trie_special) };
+	boost_foreach (const std::set<TagVector>& tvs, tagsets) {
+		boost_foreach (const TagVector& tags, tvs) {
+			if (tags.size() > 1) {
+				u_fprintf(output, "(");
+			}
+			boost_foreach (const Tag* tag, tags) {
+				printTag(output, *tag);
+				u_fprintf(output, " ");
+			}
+			if (tags.size() > 1) {
+				u_fprintf(output, ")");
+			}
+		}
+	}
+	u_fprintf(output, " ;\n");
+
+}
+
+
+void GrammarWriter::printListRelabelled(UFILE *output, const Set& curset) {
+	bool used_to_unify = unified_sets.find(curset.name) != unified_sets.end();
+	if (used_to_unify) {
+		u_fprintf(output, "LIST %S = ", curset.name.c_str());
+	}
+	else {
+		u_fprintf(output, "SET %S = ", curset.name.c_str());
+	}
+	std::set<TagVector> tagsets[] = { trie_getTagsOrdered(curset.trie), trie_getTagsOrdered(curset.trie_special) };
+	bool first = true;
+	boost_foreach (const std::set<TagVector>& tvs, tagsets) {
+		if (tvs.size() == 0) {
+			continue;
+		}
+		boost_foreach (const TagVector& tags, tvs) {
+			if(used_to_unify) {
+				if (tags.size() > 1) {
+					u_fprintf(output, "(");
+				}
+				boost_foreach (const Tag* tag, tags) {
+					printTag(output, *tag); // TODO: can still do "simple" (non-SET) relabelling for these
+					u_fprintf(output, " ");
+				}
+				if (tags.size() > 1) {
+					u_fprintf(output, ")");
+				}
+			}
+			else {
+				if (first) {
+					first = false;
+				}
+				else {
+					u_fprintf(output, " OR ");
+				}
+				bool need_plus = false;
+				std::set<const Tag*> unaltered_tags;
+				boost_foreach (const Tag* tag, tags) {
+					UString tagName = tag->toUString(true);
+					bool relabel = relabel_ids.find(tagName) != relabel_ids.end();
+					if(relabel) {
+						if(need_plus) {
+							u_fprintf(output, "+ ");
+						}
+						u_fprintf(output, "CG3_RELABEL_%d", relabel_ids[tagName]);
+						need_plus = true;
+						u_fprintf(output, " ");
+					}
+					else {
+						unaltered_tags.insert(tag);
+					}
+				}
+				if(unaltered_tags.size()>0) {
+					if(need_plus) {
+						u_fprintf(output, "+ ");
+					}
+					u_fprintf(output, "(");
+					boost_foreach (const Tag* tag, unaltered_tags) {
+						printTag(output, *tag);
+						u_fprintf(output, " ");
+					}
+					u_fprintf(output, ")");
+				}
+			}
+		}
+	}
+	u_fprintf(output, " ;\n");
+
 }
 
 void GrammarWriter::printSet(UFILE *output, const Set& curset) {
@@ -51,72 +153,7 @@ void GrammarWriter::printSet(UFILE *output, const Set& curset) {
 			}
 		}
 		used_sets.insert(curset.number);
-		bool used_to_unify = unified_sets.find(curset.name) != unified_sets.end();
-		if (used_to_unify) {
-			u_fprintf(output, "LIST %S = ", curset.name.c_str());
-		}
-		else {
-			u_fprintf(output, "SET %S = ", curset.name.c_str());
-		}
-		std::set<TagVector> tagsets[] = { trie_getTagsOrdered(curset.trie), trie_getTagsOrdered(curset.trie_special) };
-		bool first = true;
-		boost_foreach (const std::set<TagVector>& tvs, tagsets) {
-			if (tvs.size() == 0) {
-				continue;
-			}
-			boost_foreach (const TagVector& tags, tvs) {
-				if(used_to_unify) {
-					if (tags.size() > 1) {
-						u_fprintf(output, "(");
-					}
-					boost_foreach (const Tag* tag, tags) {
-						printTag(output, *tag);
-						u_fprintf(output, " ");
-					}
-					if (tags.size() > 1) {
-						u_fprintf(output, ")");
-					}
-				}
-				else {
-					if (first) {
-						first = false;
-					}
-					else {
-						u_fprintf(output, " OR ");
-					}
-					bool need_plus = false;
-					std::set<const Tag*> no_rename_tags;
-					boost_foreach (const Tag* tag, tags) {
-						const UChar * from = UNICODE_STRING_SIMPLE("N").getTerminatedBuffer();
-						UString tagName = tag->toUString(true);
-						if(u_strcmp(tagName.c_str(), from)==0) {
-							if(need_plus) {
-								u_fprintf(output, "+ ");
-							}
-							u_fprintf(output, "CG3_RELABEL_1");
-							need_plus = true;
-					                u_fprintf(output, " ");
-						}
-						else {
-							no_rename_tags.insert(tag);
-						}
-					}
-					if(no_rename_tags.size()>0) {
-						if(need_plus) {
-							u_fprintf(output, "+ ");
-						}
-						u_fprintf(output, "(");
-						boost_foreach (const Tag* tag, no_rename_tags) {
-							printTag(output, *tag);
-							//u_file_write(tagName.c_str(), tagName.length(), output);
-							u_fprintf(output, " ");
-						}
-						u_fprintf(output, ")");
-					}
-				}
-			}
-		}
-		u_fprintf(output, " ;\n");
+		printList(output, curset);
 	}
 	else {
 		used_sets.insert(curset.number);
@@ -198,8 +235,9 @@ int GrammarWriter::writeGrammar(UFILE *output) {
 	u_fprintf(output, "\n");
 
 	used_sets.clear();
-	u_fprintf(output,"SET CG3_RELABEL_1 = (np) OR (n);\n");
-	
+	if(relabel_rules) {
+		printRelabelSets(output);
+	}
 	boost_foreach (Set *s, grammar->sets_list) {
 		if (s->name[0] == '_' && s->name[1] == 'G' && s->name[2] == '_') {
 			s->name.insert(s->name.begin(), '3');
@@ -282,6 +320,18 @@ int GrammarWriter::writeGrammar(UFILE *output) {
 
 	return 0;
 }
+
+void GrammarWriter::printRelabelSets(UFILE *output) {
+	uint32_t i = 0;
+	boost_foreach (CG3::UStringMap::value_type kv, *relabel_rules) {
+		relabel_ids[kv.first] = i;
+		u_fprintf(output, "SET CG3_RELABEL_%d = %S ;\n", i, kv.second.c_str());
+		i++;
+	}
+	//u_fprintf(output,"SET CG3_RELABEL_1 = (np) OR (n);\n");
+	// u_fprintf(output,"SET CG3_RELABEL_2 = (np);\n");
+}
+
 
 // ToDo: Make printRule do the right thing for MOVE_ and ADDCOHORT_ BEFORE|AFTER
 void GrammarWriter::printRule(UFILE *to, const Rule& rule) {

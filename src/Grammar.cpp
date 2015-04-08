@@ -206,7 +206,7 @@ void Grammar::addSet(Set *& to) {
 		if (set_name_seeds.find(to->name) != set_name_seeds.end()) {
 			nhash += set_name_seeds[to->name];
 		}
-		if (sets_by_name.find(nhash) == sets_by_name.end()) {
+	 	if (sets_by_name.find(nhash) == sets_by_name.end()) {
 			sets_by_name[nhash] = chash;
 			break;
 		}

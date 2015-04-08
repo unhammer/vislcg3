@@ -24,7 +24,7 @@
 #define c6d28b7452ec699b_GRAMMARWRITER_H
 
 #include "stdafx.hpp"
- 
+
 namespace CG3 {
 	class Grammar;
 	class Tag;
@@ -32,11 +32,14 @@ namespace CG3 {
 	class Rule;
 	class ContextualTest;
 
+	typedef stdext::hash_map<UString,UString> UStringMap;
+
 	class GrammarWriter {
 	public:
 		bool statistics;
-	
+
 		GrammarWriter(Grammar& res, UFILE *ux_err);
+		GrammarWriter(Grammar& res, UFILE *ux_err, UStringMap* relabel_rules);
 		~GrammarWriter();
 
 		int writeGrammar(UFILE *output);
@@ -45,13 +48,18 @@ namespace CG3 {
 		UFILE *ux_stderr;
 		uint32FlatHashSet used_sets;
 		const Grammar *grammar;
+		typedef std::set<UString> set_name_map_t;
+		set_name_map_t unified_sets;
+		const UStringMap* relabel_rules;
+		stdext::hash_map<UString,uint32_t> relabel_ids;
 
 		void printTag(UFILE *out, const Tag& tag);
 		void printSet(UFILE *output, const Set& curset);
+		void printList(UFILE *output, const Set& curset);
+		void printListRelabelled(UFILE *output, const Set& curset);
 		void printRule(UFILE *to, const Rule& rule);
 		void printContextualTest(UFILE *to, const ContextualTest& test);
-		typedef std::set<UString> set_name_map_t;
-		set_name_map_t unified_sets;
+		void printRelabelSets(UFILE *out);
 	};
 }
 
