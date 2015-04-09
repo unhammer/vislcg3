@@ -45,8 +45,54 @@ void endProgram(char *name) {
 }
 
 
-int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fname) {
-	return -1;
+int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fname, UFILE * ux_stderr) {
+	if (!input || !input[0]) {
+		u_fprintf(ux_stderr, "%s: Error: Input is empty - cannot continue!\n", fname);
+		CG3Quit(1);
+	}
+
+	UChar *p = input;
+	int lines = 1;
+	const char * filebase = basename(const_cast<char*>(fname));
+
+	while (*p) {
+	try {
+		lines += CG3::SKIPWS(p);
+		UChar *n = p;
+		lines += CG3::SKIPTOWS(n, 0, true);
+		while (n[-1] == ',' || n[-1] == ']') {
+			--n;
+		}
+		ptrdiff_t c = n - p;
+		u_strncpy(&CG3::gbuffers[0][0], p, c);
+		CG3::gbuffers[0][c] = 0;
+		CG3::UString x = &CG3::gbuffers[0][0];
+		u_fprintf(ux_stderr, "read input %S\n",x.c_str()); // DEBUG
+		p = n;
+		//lines += CG3::SKIPWS(p, '=');
+
+	}
+	catch (int) {
+		lines += CG3::SKIPLN(p);
+	}
+	}
+
+	return 0;
+}
+int parseFromUChar_old(CG3::UStringMap* relabel_rules, UChar *input, const char *fname) {
+	// TODO: actually parse the file
+	CG3::UString
+		from(UNICODE_STRING_SIMPLE("N").getTerminatedBuffer()),
+		to(UNICODE_STRING_SIMPLE("(n) OR (np)").getTerminatedBuffer()),
+		from2(UNICODE_STRING_SIMPLE("Prop").getTerminatedBuffer()),
+		to2(UNICODE_STRING_SIMPLE("(np) - (n)").getTerminatedBuffer()),
+		from3(UNICODE_STRING_SIMPLE("Det").getTerminatedBuffer()),
+		to3(UNICODE_STRING_SIMPLE("(det)").getTerminatedBuffer());
+	relabel_rules->emplace(from, to);
+	relabel_rules->emplace(from2, to2);
+	relabel_rules->emplace(from3, to3);
+
+	return 0;
 }
 
 int parse_relabel_file(CG3::UStringMap* relabel_rules, const char *filename, const char *locale, const char *codepage, UFILE * ux_stderr) {
@@ -85,19 +131,10 @@ int parse_relabel_file(CG3::UStringMap* relabel_rules, const char *filename, con
 	data.resize(read+4+1);
 
 
-	error = parseFromUChar(relabel_rules, &data[4], filename);
+	error = parseFromUChar(relabel_rules, &data[4], filename, ux_stderr);
 	if (error) {
 		return error;
 	}
-
-	// TODO: actually parse the file
-	CG3::UString
-		from(UNICODE_STRING_SIMPLE("N").getTerminatedBuffer()),
-		to(UNICODE_STRING_SIMPLE("(n) OR (np)").getTerminatedBuffer()),
-		from2(UNICODE_STRING_SIMPLE("Prop").getTerminatedBuffer()),
-		to2(UNICODE_STRING_SIMPLE("(np) - (n)").getTerminatedBuffer());
-	relabel_rules->emplace(from, to);
-	relabel_rules->emplace(from2, to2);
 
 	return 0;
 }
