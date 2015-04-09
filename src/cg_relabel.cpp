@@ -185,6 +185,9 @@ int main(int argc, char *argv[]) {
 
 	grammar.reindex();
 
+	delete parser;
+	parser = 0;
+
 	std::cerr << "Sections: " << grammar.sections.size() << ", Rules: " << grammar.rule_by_number.size();
 	std::cerr << ", Sets: " << grammar.sets_list.size() << ", Tags: " << grammar.single_tags.size() << std::endl;
 
