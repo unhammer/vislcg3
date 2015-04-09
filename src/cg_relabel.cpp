@@ -64,7 +64,6 @@ int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fna
 		u_strncpy(&CG3::gbuffers[0][0], p, c);
 		CG3::gbuffers[0][c] = 0;
 		CG3::UString from = &CG3::gbuffers[0][0];
-		u_fprintf(ux_stderr, "read input %S\n",from.c_str()); // DEBUG
 		p = n;
 		// TO keyword:
 		lines += CG3::SKIPWS(p);
@@ -80,7 +79,6 @@ int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fna
 		u_strncpy(&CG3::gbuffers[0][0], p, c);
 		CG3::gbuffers[0][c] = 0;
 		CG3::UString to = &CG3::gbuffers[0][0];
-		u_fprintf(ux_stderr, "read input %S\n", to.c_str()); // DEBUG
 		p = n;
 		relabel_rules->emplace(from, to);
 	}
@@ -198,17 +196,11 @@ int main(int argc, char *argv[]) {
 		std::cerr << "Grammar has dependency rules." << std::endl;
 	}
 
-std::cerr<<"parsing relabel file:"<<std::endl;
 	CG3::UStringMap* relabel_rules = new CG3::UStringMap;
 	if (parse_relabel_file(relabel_rules, argv[2], locale_default, codepage_default, ux_stderr)) {
 		std::cerr << "Error: Relabelling rule file could not be parsed - exiting!" << std::endl;
 		CG3Quit(1);
 	}
-
-std::cerr<<"parsed relabel file as:"<<std::endl;
-boost_foreach (CG3::UStringMap::value_type pair, *relabel_rules) {
-	u_fprintf(ux_stderr, "%S --> %S\n", pair.first.c_str(), pair.second.c_str());
-}
 
 	UFILE *gout = u_fopen(argv[3], "w", locale_default, codepage_default);
 
