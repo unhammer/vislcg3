@@ -55,9 +55,9 @@ int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fna
 	int lines = 1;
 	const char * filebase = basename(const_cast<char*>(fname));
 
+	lines += CG3::SKIPWS(p);
 	while (*p) {
 		// the "from" tag:
-		lines += CG3::SKIPWS(p);
 		UChar *n = p;
 		lines += CG3::SKIPTOWS(n, 0, true);
 		ptrdiff_t c = n - p;
@@ -81,6 +81,7 @@ int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fna
 		CG3::UString to = &CG3::gbuffers[0][0];
 		p = n;
 		relabel_rules->emplace(from, to);
+		lines += CG3::SKIPWS(p);
 	}
 
 	return 0;
