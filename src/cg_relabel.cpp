@@ -75,7 +75,11 @@ int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fna
 		// the "to" set:
 		n = p;
 		lines += CG3::SKIPLN(n);
-		c = n - p;
+		UChar *e = n;
+		while (CG3::ISSPACE(*(e-1))) {
+			--e;
+		}
+		c = e - p;
 		u_strncpy(&CG3::gbuffers[0][0], p, c);
 		CG3::gbuffers[0][c] = 0;
 		CG3::UString to = &CG3::gbuffers[0][0];
