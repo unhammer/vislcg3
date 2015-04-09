@@ -56,41 +56,34 @@ int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fna
 	const char * filebase = basename(const_cast<char*>(fname));
 
 	while (*p) {
-	try {
+		// the "from" tag:
 		lines += CG3::SKIPWS(p);
 		UChar *n = p;
 		lines += CG3::SKIPTOWS(n, 0, true);
-		while (n[-1] == ',' || n[-1] == ']') {
-			--n;
-		}
 		ptrdiff_t c = n - p;
 		u_strncpy(&CG3::gbuffers[0][0], p, c);
 		CG3::gbuffers[0][c] = 0;
-		CG3::UString x = &CG3::gbuffers[0][0];
-		u_fprintf(ux_stderr, "read input %S\n",x.c_str()); // DEBUG
+		CG3::UString from = &CG3::gbuffers[0][0];
+		u_fprintf(ux_stderr, "read input %S\n",from.c_str()); // DEBUG
 		p = n;
-		//lines += CG3::SKIPWS(p, '=');
-
+		// TO keyword:
+		lines += CG3::SKIPWS(p);
+		if (!(CG3::ISCHR(*p,'T','t') && CG3::ISCHR(*(p+1),'O','o') && CG3::ISSPACE(*(p+2)))) {
+			u_fprintf(ux_stderr, "%s: Error: missing TO keyword on line %d!\n", filebase, lines);
+			CG3Quit(1);
+		}
+		p += 2;
+		// the "to" set:
+		n = p;
+		lines += CG3::SKIPLN(n);
+		c = n - p;
+		u_strncpy(&CG3::gbuffers[0][0], p, c);
+		CG3::gbuffers[0][c] = 0;
+		CG3::UString to = &CG3::gbuffers[0][0];
+		u_fprintf(ux_stderr, "read input %S\n", to.c_str()); // DEBUG
+		p = n;
+		relabel_rules->emplace(from, to);
 	}
-	catch (int) {
-		lines += CG3::SKIPLN(p);
-	}
-	}
-
-	return 0;
-}
-int parseFromUChar_old(CG3::UStringMap* relabel_rules, UChar *input, const char *fname) {
-	// TODO: actually parse the file
-	CG3::UString
-		from(UNICODE_STRING_SIMPLE("N").getTerminatedBuffer()),
-		to(UNICODE_STRING_SIMPLE("(n) OR (np)").getTerminatedBuffer()),
-		from2(UNICODE_STRING_SIMPLE("Prop").getTerminatedBuffer()),
-		to2(UNICODE_STRING_SIMPLE("(np) - (n)").getTerminatedBuffer()),
-		from3(UNICODE_STRING_SIMPLE("Det").getTerminatedBuffer()),
-		to3(UNICODE_STRING_SIMPLE("(det)").getTerminatedBuffer());
-	relabel_rules->emplace(from, to);
-	relabel_rules->emplace(from2, to2);
-	relabel_rules->emplace(from3, to3);
 
 	return 0;
 }
