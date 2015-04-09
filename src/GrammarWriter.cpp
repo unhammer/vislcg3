@@ -37,10 +37,20 @@ GrammarWriter::GrammarWriter(Grammar& res, UFILE *ux_err, UStringMap* relabels) 
 	ux_stderr = ux_err;
 	grammar = &res;
 	relabel_rules = relabels;
+
+	set_id_map_t* ids = new set_id_map_t;
+	uint32_t i = 0;
+	boost_foreach (CG3::UStringMap::value_type kv, *relabel_rules) {
+		ids->emplace(kv.first, i);
+		i++;
+	}
+	relabel_ids = ids;
 }
 
 GrammarWriter::~GrammarWriter() {
 	grammar = 0;
+	delete relabel_ids;
+	relabel_ids = 0;
 }
 
 void GrammarWriter::printList(UFILE *output, const Set& curset) {
@@ -107,12 +117,12 @@ void GrammarWriter::printListRelabelled(UFILE *output, const Set& curset) {
 				std::set<const Tag*> unaltered_tags;
 				boost_foreach (const Tag* tag, tags) {
 					UString tagName = tag->toUString(true);
-					bool relabel = relabel_ids.find(tagName) != relabel_ids.end();
+					bool relabel = relabel_ids->find(tagName) != relabel_ids->end();
 					if(relabel) {
 						if(need_plus) {
 							u_fprintf(output, "+ ");
 						}
-						u_fprintf(output, "CG3_RELABEL_%d", relabel_ids[tagName]);
+						u_fprintf(output, "CG3_RELABEL_%d", relabel_ids->at(tagName));
 						need_plus = true;
 						u_fprintf(output, " ");
 					}
@@ -322,14 +332,9 @@ int GrammarWriter::writeGrammar(UFILE *output) {
 }
 
 void GrammarWriter::printRelabelSets(UFILE *output) {
-	uint32_t i = 0;
 	boost_foreach (CG3::UStringMap::value_type kv, *relabel_rules) {
-		relabel_ids[kv.first] = i;
-		u_fprintf(output, "SET CG3_RELABEL_%d = %S ;\n", i, kv.second.c_str());
-		i++;
+		u_fprintf(output, "SET CG3_RELABEL_%d = %S ;\n", relabel_ids->at(kv.first), kv.second.c_str());
 	}
-	//u_fprintf(output,"SET CG3_RELABEL_1 = (np) OR (n);\n");
-	// u_fprintf(output,"SET CG3_RELABEL_2 = (np);\n");
 }
 
 

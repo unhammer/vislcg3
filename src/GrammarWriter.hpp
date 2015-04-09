@@ -51,7 +51,8 @@ namespace CG3 {
 		typedef std::set<UString> set_name_map_t;
 		set_name_map_t unified_sets;
 		const UStringMap* relabel_rules;
-		stdext::hash_map<UString,uint32_t> relabel_ids;
+		typedef stdext::hash_map<UString,uint32_t> set_id_map_t;
+		const set_id_map_t* relabel_ids;
 
 		void printTag(UFILE *out, const Tag& tag);
 		void printSet(UFILE *output, const Set& curset);

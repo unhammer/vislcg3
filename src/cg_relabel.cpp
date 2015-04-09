@@ -44,15 +44,24 @@ void endProgram(char *name) {
 	exit(EXIT_FAILURE);
 }
 
-CG3::UStringMap* parse_relabel_file(const char *filename, const char *locale, const char *codepage, UFILE * ux_stderr) {
+
+int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fname) {
+	return -1;
+}
+
+int parse_relabel_file(CG3::UStringMap* relabel_rules, const char *filename, const char *locale, const char *codepage, UFILE * ux_stderr) {
 	const char * filebase = basename(const_cast<char*>(filename));
 
 	struct stat _stat;
 	int error = stat(filename, &_stat);
+	size_t grammar_size = 0;
 
 	if (error != 0) {
 		u_fprintf(ux_stderr, "%s: Error: Cannot stat %s due to error %d - bailing out!\n", filebase, filename, error);
 		CG3Quit(1);
+	}
+	else {
+		grammar_size = static_cast<size_t>(_stat.st_size);
 	}
 
 	UFILE *grammar = u_fopen(filename, "rb", locale, codepage);
@@ -65,7 +74,21 @@ CG3::UStringMap* parse_relabel_file(const char *filename, const char *locale, co
 		u_fungetc(bom, grammar);
 	}
 
-	CG3::UStringMap* relabel_rules = new CG3::UStringMap;
+	// It reads into the buffer at offset 4 because certain functions may look back, so we need some nulls in front.
+	std::vector<UChar> data(grammar_size*2, 0);
+	uint32_t read = u_file_read(&data[4], grammar_size*2, grammar);
+	u_fclose(grammar);
+	if (read >= grammar_size*2-1) {
+		u_fprintf(ux_stderr, "%s: Error: Converting from underlying codepage to UTF-16 exceeded factor 2 buffer.\n", filebase);
+		CG3Quit(1);
+	}
+	data.resize(read+4+1);
+
+
+	error = parseFromUChar(relabel_rules, &data[4], filename);
+	if (error) {
+		return error;
+	}
 
 	// TODO: actually parse the file
 	CG3::UString
@@ -76,7 +99,7 @@ CG3::UStringMap* parse_relabel_file(const char *filename, const char *locale, co
 	relabel_rules->emplace(from, to);
 	relabel_rules->emplace(from2, to2);
 
-	return relabel_rules;
+	return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -146,13 +169,16 @@ int main(int argc, char *argv[]) {
 	}
 
 std::cerr<<"parsing relabel file:"<<std::endl;
-	CG3::UStringMap* relabel_rules = parse_relabel_file(argv[2], locale_default, codepage_default, ux_stderr);
+	CG3::UStringMap* relabel_rules = new CG3::UStringMap;
+	if (parse_relabel_file(relabel_rules, argv[2], locale_default, codepage_default, ux_stderr)) {
+		std::cerr << "Error: Relabelling rule file could not be parsed - exiting!" << std::endl;
+		CG3Quit(1);
+	}
 
+std::cerr<<"parsed relabel file as:"<<std::endl;
 boost_foreach (CG3::UStringMap::value_type pair, *relabel_rules) {
 	u_fprintf(ux_stderr, "%S --> %S\n", pair.first.c_str(), pair.second.c_str());
 }
-
-std::cerr<<"writing new grammar file:"<<std::endl;
 
 	UFILE *gout = u_fopen(argv[3], "w", locale_default, codepage_default);
 
@@ -163,6 +189,9 @@ std::cerr<<"writing new grammar file:"<<std::endl;
 	else {
 		std::cerr << "Could not write grammar to " << argv[3] << std::endl;
 	}
+
+	delete relabel_rules;
+	relabel_rules = 0;
 
 	u_fclose(ux_stderr);
 
