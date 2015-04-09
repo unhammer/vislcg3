@@ -25,6 +25,17 @@ if (!$binary_proc || $binary_proc eq '' || !(-x $binary_proc)) {
 	die("Error: $binary_proc is not executable!");
 }
 
+my @unlinks = (
+   'grammar-out.cg3',
+   'grammar-out.cg3b',
+);
+for my $u (@unlinks) {
+        if (-e $u) {
+                unlink $u;
+        }
+}
+
+
 `"$binary_relabel" grammar.cg3 relabel.cg3r grammar-out.cg3 >stdout.txt 2>stderr.txt`;
 if (-s "grammar-out.cg3") {
 	print STDERR "Success ";

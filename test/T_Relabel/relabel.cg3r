@@ -1,4 +1,10 @@
-N	TO	(n) OR (np)
+
 Prop	TO	(np)
+
 Det	TO	(det)
+
+
 V	TO	(vblex)
+N	TO	(n) OR (np)
+
+
