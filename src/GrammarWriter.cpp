@@ -78,23 +78,42 @@ void GrammarWriter::printList(UFILE *output, const Set& curset) {
 
 }
 
+bool GrammarWriter::tagsWantRelabelling(std::set<TagVector> tagsets[]) {
+	// TODO: why doesn't boost_foreach work here? just get confusing make errors
+	// boost_foreach (const std::set<TagVector>& tvs, tagsets) {
+	// }
+	for (int i=0; i<2; i++) {
+		const std::set<TagVector>& tvs = tagsets[i];
+		boost_foreach (const TagVector& tags, tvs) {
+		 	boost_foreach (const Tag* tag, tags) {
+				UString tagName = tag->toUString(true);
+				if(relabel_ids->find(tagName) != relabel_ids->end()) {
+					return false;
+				}
+			}
+		}
+	}
+	return true;
+}
 
 void GrammarWriter::printListRelabelled(UFILE *output, const Set& curset) {
 	bool used_to_unify = unified_sets.find(curset.name) != unified_sets.end();
-	if (used_to_unify) {
+	std::set<TagVector> tagsets[] = { trie_getTagsOrdered(curset.trie), trie_getTagsOrdered(curset.trie_special) };
+	bool no_relabel_tags = tagsWantRelabelling(tagsets);
+	bool treat_as_list = no_relabel_tags || used_to_unify;
+	if (treat_as_list) {
 		u_fprintf(output, "LIST %S = ", curset.name.c_str());
 	}
 	else {
 		u_fprintf(output, "SET %S = ", curset.name.c_str());
 	}
-	std::set<TagVector> tagsets[] = { trie_getTagsOrdered(curset.trie), trie_getTagsOrdered(curset.trie_special) };
 	bool first = true;
 	boost_foreach (const std::set<TagVector>& tvs, tagsets) {
 		if (tvs.size() == 0) {
 			continue;
 		}
 		boost_foreach (const TagVector& tags, tvs) {
-			if(used_to_unify) {
+			if(treat_as_list) {
 				if (tags.size() > 1) {
 					u_fprintf(output, "(");
 				}
