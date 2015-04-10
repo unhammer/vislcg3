@@ -78,7 +78,7 @@ void GrammarWriter::printList(UFILE *output, const Set& curset) {
 
 }
 
-bool GrammarWriter::tagsWantRelabelling(std::set<TagVector> tagsets[]) {
+bool GrammarWriter::noTagsWantRelabelling(std::set<TagVector> tagsets[]) {
 	// TODO: why doesn't boost_foreach work here? just get confusing make errors
 	// boost_foreach (const std::set<TagVector>& tvs, tagsets) {
 	// }
@@ -99,7 +99,7 @@ bool GrammarWriter::tagsWantRelabelling(std::set<TagVector> tagsets[]) {
 void GrammarWriter::printListRelabelled(UFILE *output, const Set& curset) {
 	bool used_to_unify = unified_sets.find(curset.name) != unified_sets.end();
 	std::set<TagVector> tagsets[] = { trie_getTagsOrdered(curset.trie), trie_getTagsOrdered(curset.trie_special) };
-	bool no_relabel_tags = tagsWantRelabelling(tagsets);
+	bool no_relabel_tags = noTagsWantRelabelling(tagsets);
 	bool treat_as_list = no_relabel_tags || used_to_unify;
 	if (treat_as_list) {
 		u_fprintf(output, "LIST %S = ", curset.name.c_str());

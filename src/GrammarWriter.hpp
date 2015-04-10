@@ -62,7 +62,7 @@ namespace CG3 {
 		void printContextualTest(UFILE *to, const ContextualTest& test);
 		void printRelabelSets(UFILE *out);
 		typedef std::vector<Tag*> TagVector;
-		bool tagsWantRelabelling(std::set<TagVector> tagsets[]);
+		bool noTagsWantRelabelling(std::set<TagVector> tagsets[]);
 };
 }
 
