@@ -45,7 +45,23 @@ void endProgram(char *name) {
 }
 
 
-int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fname, UFILE * ux_stderr) {
+bool isSimpleList(const UChar *p, uint32_t c) {
+	// If the to-part looks like "(foo bar)" with no OR or -, then
+	// it's "simple" and GrammarWriter won't need to use SET
+	// operations represent the replacement.
+	if ((*p) != '(' || (*(p+c-1)) != ')') {
+		return false;
+	}
+	while (c) {
+		if((*(p+c)) == '(') {
+			return false;
+		}
+		c--;
+	}
+	return true;
+}
+
+int parseFromUChar(CG3::UStringMap* relabel_as_set, CG3::UStringMap* relabel_as_list, UChar *input, const char *fname, UFILE * ux_stderr) {
 	if (!input || !input[0]) {
 		u_fprintf(ux_stderr, "%s: Error: Input is empty - cannot continue!\n", fname);
 		CG3Quit(1);
@@ -73,6 +89,11 @@ int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fna
 		}
 		p += 2;
 		// the "to" set:
+		lines += CG3::SKIPWS(p);
+		if ((*p) != '(') {
+			u_fprintf(ux_stderr, "%s: Warning: TO-part of line %d doesn't look like an inline set.\n", filebase, lines);
+			// TODO: should we still let people abuse it (e.g. referring to named sets), or error out here?
+		}
 		n = p;
 		lines += CG3::SKIPLN(n);
 		UChar *e = n;
@@ -83,15 +104,21 @@ int parseFromUChar(CG3::UStringMap* relabel_rules, UChar *input, const char *fna
 		u_strncpy(&CG3::gbuffers[0][0], p, c);
 		CG3::gbuffers[0][c] = 0;
 		CG3::UString to = &CG3::gbuffers[0][0];
+		relabel_as_set->emplace(from, to);
+		if(isSimpleList(p, c)) {
+			u_strncpy(&CG3::gbuffers[0][0], p+1, c-2);
+			CG3::gbuffers[0][c-2] = 0;
+			to = &CG3::gbuffers[0][0];
+			relabel_as_list->emplace(from, to);
+		}
 		p = n;
-		relabel_rules->emplace(from, to);
 		lines += CG3::SKIPWS(p);
 	}
 
 	return 0;
 }
 
-int parse_relabel_file(CG3::UStringMap* relabel_rules, const char *filename, const char *locale, const char *codepage, UFILE * ux_stderr) {
+int parse_relabel_file(CG3::UStringMap* relabel_as_set, CG3::UStringMap* relabel_as_list, const char *filename, const char *locale, const char *codepage, UFILE * ux_stderr) {
 	const char * filebase = basename(const_cast<char*>(filename));
 
 	struct stat _stat;
@@ -127,7 +154,7 @@ int parse_relabel_file(CG3::UStringMap* relabel_rules, const char *filename, con
 	data.resize(read+4+1);
 
 
-	error = parseFromUChar(relabel_rules, &data[4], filename, ux_stderr);
+	error = parseFromUChar(relabel_as_set, relabel_as_list, &data[4], filename, ux_stderr);
 	if (error) {
 		return error;
 	}
@@ -204,8 +231,9 @@ int main(int argc, char *argv[]) {
 		std::cerr << "Grammar has dependency rules." << std::endl;
 	}
 
-	CG3::UStringMap* relabel_rules = new CG3::UStringMap;
-	if (parse_relabel_file(relabel_rules, argv[2], locale_default, codepage_default, ux_stderr)) {
+	CG3::UStringMap* relabel_as_set = new CG3::UStringMap;
+	CG3::UStringMap* relabel_as_list = new CG3::UStringMap;
+	if (parse_relabel_file(relabel_as_set, relabel_as_list, argv[2], locale_default, codepage_default, ux_stderr)) {
 		std::cerr << "Error: Relabelling rule file could not be parsed - exiting!" << std::endl;
 		CG3Quit(1);
 	}
@@ -213,15 +241,17 @@ int main(int argc, char *argv[]) {
 	UFILE *gout = u_fopen(argv[3], "w", locale_default, codepage_default);
 
 	if (gout) {
-		CG3::GrammarWriter writer(grammar, ux_stderr, relabel_rules);
+		CG3::GrammarWriter writer(grammar, ux_stderr, relabel_as_set, relabel_as_list);
 		writer.writeGrammar(gout);
 	}
 	else {
 		std::cerr << "Could not write grammar to " << argv[3] << std::endl;
 	}
 
-	delete relabel_rules;
-	relabel_rules = 0;
+	delete relabel_as_set;
+	relabel_as_set = 0;
+	delete relabel_as_list;
+	relabel_as_list = 0;
 
 	u_fclose(ux_stderr);
 

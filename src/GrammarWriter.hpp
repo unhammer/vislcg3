@@ -39,7 +39,7 @@ namespace CG3 {
 		bool statistics;
 
 		GrammarWriter(Grammar& res, UFILE *ux_err);
-		GrammarWriter(Grammar& res, UFILE *ux_err, UStringMap* relabel_rules);
+		GrammarWriter(Grammar& res, UFILE *ux_err, UStringMap* relabel_as_set, UStringMap* relabel_as_list);
 		~GrammarWriter();
 
 		int writeGrammar(UFILE *output);
@@ -50,9 +50,10 @@ namespace CG3 {
 		const Grammar *grammar;
 		typedef std::set<UString> set_name_map_t;
 		set_name_map_t unified_sets;
-		const UStringMap* relabel_rules;
+		const UStringMap* relabel_as_set;
+		const UStringMap* relabel_as_list;
 		typedef stdext::hash_map<UString,uint32_t> set_id_map_t;
-		const set_id_map_t* relabel_ids;
+		const set_id_map_t* relabel_set_ids;
 
 		void printTag(UFILE *out, const Tag& tag);
 		void printSet(UFILE *output, const Set& curset);
@@ -62,7 +63,7 @@ namespace CG3 {
 		void printContextualTest(UFILE *to, const ContextualTest& test);
 		void printRelabelSets(UFILE *out);
 		typedef std::vector<Tag*> TagVector;
-		bool noTagsWantRelabelling(std::set<TagVector> tagsets[]);
+		bool needsSetOps(std::set<TagVector> tagsets[]);
 };
 }
 

@@ -32,29 +32,30 @@ GrammarWriter::GrammarWriter(Grammar& res, UFILE *ux_err) {
 	grammar = &res;
 }
 
-GrammarWriter::GrammarWriter(Grammar& res, UFILE *ux_err, UStringMap* relabels) {
+GrammarWriter::GrammarWriter(Grammar& res, UFILE *ux_err, UStringMap* relabels, UStringMap* relabels_simple) {
 	statistics = false;
 	ux_stderr = ux_err;
 	grammar = &res;
-	relabel_rules = relabels;
+	relabel_as_set = relabels;
+	relabel_as_list = relabels_simple;
 
 	set_id_map_t* ids = new set_id_map_t;
 	uint32_t i = 0;
-	boost_foreach (CG3::UStringMap::value_type kv, *relabel_rules) {
+	boost_foreach (CG3::UStringMap::value_type kv, *relabel_as_set) {
 		ids->emplace(kv.first, i);
 		i++;
 	}
-	relabel_ids = ids;
+	relabel_set_ids = ids;
 }
 
 GrammarWriter::~GrammarWriter() {
 	grammar = 0;
-	delete relabel_ids;
-	relabel_ids = 0;
+	delete relabel_set_ids;
+	relabel_set_ids = 0;
 }
 
 void GrammarWriter::printList(UFILE *output, const Set& curset) {
-	if(relabel_rules) {
+	if(relabel_as_set) {
 		return printListRelabelled(output, curset);
 	}
 
@@ -78,8 +79,8 @@ void GrammarWriter::printList(UFILE *output, const Set& curset) {
 
 }
 
-bool GrammarWriter::noTagsWantRelabelling(std::set<TagVector> tagsets[]) {
-	// TODO: why doesn't boost_foreach work here? just get confusing make errors
+bool GrammarWriter::needsSetOps(std::set<TagVector> tagsets[]) {
+	// TODO: why doesn't boost_foreach work here? I get confusing make errors:
 	// boost_foreach (const std::set<TagVector>& tvs, tagsets) {
 	// }
 	for (int i=0; i<2; i++) {
@@ -87,45 +88,54 @@ bool GrammarWriter::noTagsWantRelabelling(std::set<TagVector> tagsets[]) {
 		boost_foreach (const TagVector& tags, tvs) {
 		 	boost_foreach (const Tag* tag, tags) {
 				UString tagName = tag->toUString(true);
-				if(relabel_ids->find(tagName) != relabel_ids->end()) {
-					return false;
+				bool needs_relabelling = relabel_set_ids->find(tagName) != relabel_set_ids->end();
+				bool needs_set_ops = relabel_as_list->find(tagName) == relabel_as_list->end();
+				if(needs_relabelling && needs_set_ops) {
+					return true;
 				}
 			}
 		}
 	}
-	return true;
+	return false;
 }
 
 void GrammarWriter::printListRelabelled(UFILE *output, const Set& curset) {
 	bool used_to_unify = unified_sets.find(curset.name) != unified_sets.end();
 	std::set<TagVector> tagsets[] = { trie_getTagsOrdered(curset.trie), trie_getTagsOrdered(curset.trie_special) };
-	bool no_relabel_tags = noTagsWantRelabelling(tagsets);
-	bool treat_as_list = no_relabel_tags || used_to_unify;
-	if (treat_as_list) {
+	bool needs_set_ops = needsSetOps(tagsets);
+	if(used_to_unify && needs_set_ops) {
+		u_fprintf(ux_stderr, "Warning: LIST's used in unification can't be relabelled using SET operations!\n");
+	}
+	bool treat_as_list = used_to_unify || !needs_set_ops ;
+	if(treat_as_list) {
 		u_fprintf(output, "LIST %S = ", curset.name.c_str());
+		boost_foreach (const std::set<TagVector>& tvs, tagsets) {
+			boost_foreach (const TagVector& tags, tvs) {
+				// Output the parentheses unconditionally; otherwise we need to first go through the tags and check if any need relabelling into >1 tag
+				u_fprintf(output, "(");
+				boost_foreach (const Tag* tag, tags) {
+					UString tagName = tag->toUString(true);
+					bool relabel = relabel_as_list->find(tagName) != relabel_as_list->end();
+					if(relabel) {
+						u_fprintf(output, "%S ", relabel_as_list->at(tagName).c_str());
+					}
+					else {
+						printTag(output, *tag);
+						u_fprintf(output, " ");
+					}
+				}
+				u_fprintf(output, ") ");
+			}
+		}
 	}
 	else {
 		u_fprintf(output, "SET %S = ", curset.name.c_str());
-	}
-	bool first = true;
-	boost_foreach (const std::set<TagVector>& tvs, tagsets) {
-		if (tvs.size() == 0) {
-			continue;
-		}
-		boost_foreach (const TagVector& tags, tvs) {
-			if(treat_as_list) {
-				if (tags.size() > 1) {
-					u_fprintf(output, "(");
-				}
-				boost_foreach (const Tag* tag, tags) {
-					printTag(output, *tag); // TODO: can still do "simple" (non-SET) relabelling for these
-					u_fprintf(output, " ");
-				}
-				if (tags.size() > 1) {
-					u_fprintf(output, ")");
-				}
+		bool first = true;
+		boost_foreach (const std::set<TagVector>& tvs, tagsets) {
+			if (tvs.size() == 0) {
+				continue;
 			}
-			else {
+			boost_foreach (const TagVector& tags, tvs) {
 				if (first) {
 					first = false;
 				}
@@ -136,14 +146,13 @@ void GrammarWriter::printListRelabelled(UFILE *output, const Set& curset) {
 				std::set<const Tag*> unaltered_tags;
 				boost_foreach (const Tag* tag, tags) {
 					UString tagName = tag->toUString(true);
-					bool relabel = relabel_ids->find(tagName) != relabel_ids->end();
+					bool relabel = relabel_set_ids->find(tagName) != relabel_set_ids->end();
 					if(relabel) {
 						if(need_plus) {
 							u_fprintf(output, "+ ");
 						}
-						u_fprintf(output, "CG3_RELABEL_%d", relabel_ids->at(tagName));
+						u_fprintf(output, "CG3_RELABEL_%d ", relabel_set_ids->at(tagName));
 						need_plus = true;
-						u_fprintf(output, " ");
 					}
 					else {
 						unaltered_tags.insert(tag);
@@ -264,7 +273,7 @@ int GrammarWriter::writeGrammar(UFILE *output) {
 	u_fprintf(output, "\n");
 
 	used_sets.clear();
-	if(relabel_rules) {
+	if(relabel_as_set) {
 		printRelabelSets(output);
 	}
 	boost_foreach (Set *s, grammar->sets_list) {
@@ -351,8 +360,8 @@ int GrammarWriter::writeGrammar(UFILE *output) {
 }
 
 void GrammarWriter::printRelabelSets(UFILE *output) {
-	boost_foreach (CG3::UStringMap::value_type kv, *relabel_rules) {
-		u_fprintf(output, "SET CG3_RELABEL_%d = %S ;\n", relabel_ids->at(kv.first), kv.second.c_str());
+	boost_foreach (CG3::UStringMap::value_type kv, *relabel_as_set) {
+		u_fprintf(output, "SET CG3_RELABEL_%d = %S ;\n", relabel_set_ids->at(kv.first), kv.second.c_str());
 	}
 }
 
