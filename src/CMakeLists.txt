@@ -154,7 +154,7 @@ add_executable(cg-proc
 cg3_link(cg-proc)
 target_link_libraries(cg-proc ${LINKLIB})
 
-add_executable(cg-relabel cg_relabel.cpp)
+add_executable(cg-relabel cg-relabel.cpp)
 cg3_link(cg-relabel)
 target_link_libraries(cg-relabel ${LINKLIB})
 
