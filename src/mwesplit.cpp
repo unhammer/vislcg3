@@ -72,7 +72,7 @@ void print_cohort(UFILE *output, const Cohort& c) {
 	std::set<std::string> seen;
 	foreach (r, c.readings) {
 		std::ostringstream subs;
-		for(std::vector<Reading>::const_iterator s = r->begin(); s != r->end(); s++) {
+		foreach(s, *r) {
 			subs << s->ana << std::endl;
 		}
 		std::string sub = subs.str();
@@ -103,8 +103,7 @@ const Cohort cohort_from_wftag(const std::string form) {
 
 const std::vector<Cohort> split_cohort(const Cohort& mwe, const unsigned int lno) {
 	size_t n_wftags = 0;
-	for(std::vector<std::vector<Reading> >::const_iterator r = mwe.readings.begin();
-	    r != mwe.readings.end(); r++) {
+	foreach(r, mwe.readings) {
 		if(!r->empty() && !r->front().wftag.empty()) {
 			++n_wftags;
 		}
@@ -113,26 +112,26 @@ const std::vector<Cohort> split_cohort(const Cohort& mwe, const unsigned int lno
 		if(n_wftags > 0) {
 			std::cerr << "WARNING: Line " << lno << ": Some but not all main-readings of \"<" << mwe.form << ">\" had wordform-tags (not completely mwe-disambiguated?), not splitting."<< std::endl;
 		}
-		return (std::vector<Cohort>){ mwe };
+		return std::vector<Cohort>(1, mwe);
 	}
 
 	std::vector<Cohort> cos;
 	foreach(r, mwe.readings) {
 		size_t pos = -1;
-		foreach (s, r) {
-			if(!s.wftag.empty()) {
+		foreach(s, *r) {
+			if(!(s->wftag.empty())) {
 				++pos;
-				Cohort c = cohort_from_wftag(s.wftag);
+				Cohort c = cohort_from_wftag(s->wftag);
 				while(cos.size() < pos+1) {
 					cos.push_back(c);
 				}
 				if(cos[pos].form != c.form) {
-					std::cerr << "WARNING: Line " << lno << ": Ambiguous word form tags for same cohort, '" << cos[pos].form << "' vs '" << s.wftag << "'"<< std::endl;
+					std::cerr << "WARNING: Line " << lno << ": Ambiguous word form tags for same cohort, '" << cos[pos].form << "' vs '" << s->wftag << "'"<< std::endl;
 				}
-				cos[pos].readings.push_back({});
+				cos[pos].readings.push_back(std::vector<Reading>());
 			}
 			size_t level = cos[pos].readings.back().size();
-			Reading n = { reindent(s.ana, level), "" };
+			Reading n = { reindent(s->ana, level), "" };
 			cos[pos].readings.back().push_back(n);
 		}
 	}
@@ -145,18 +144,18 @@ void split_and_print(UFILE *output, const Cohort& c, const unsigned int lno) {
 	if(!c.form.empty()) {
 		const std::vector<Cohort> cos = split_cohort(c, lno);
 		foreach(c, cos) {
-			print_cohort(output, c);
+			print_cohort(output, *c);
 		}
 	}
 }
 
 
-void mwesplit(std::istream& is, UFILE *output)
+void mwesplit(istream& input, UFILE *output)
 {
-	Cohort cohort = { "", {}, "" };
+	Cohort cohort = (Cohort) { "", std::vector<std::vector<Reading> >(), "" };
 	size_t indentation = 0;
 	unsigned int lno = 0;
-	for (UString line; std::getline(is, line);) {
+	for (UString line; std::getline(input, line);) {
 		++lno;
 		UErrorCode status = U_ZERO_ERROR;
 		uregex_setText(CG_LINE, line.c_str(), line.length(), &status);

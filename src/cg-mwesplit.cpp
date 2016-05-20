@@ -107,5 +107,6 @@ int main(int argc, char ** argv)
 
 	// cxxopts::Options options(argv[0], " - generate grammar checker suggestions from a CG stream");
 
-	CG3::run(std::cin, std::cout);
+	CG3::istream instream(ux_stdin);
+	CG3::mwesplit(instream, ux_stdout);
 }

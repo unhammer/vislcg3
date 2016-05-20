@@ -20,11 +20,11 @@
 #define b3c2d0b8add5c9cb_MWESPLIT_H
 
 #include "stdafx.hpp"
+#include "istream.hpp"
 
 namespace CG3 {
 
-void mwesplit(std::istream& is, std::ostream& os);
-
+void mwesplit(istream& input, UFILE *output);
 
 }
 
