@@ -24,7 +24,7 @@
 
 namespace CG3 {
 
-void mwesplit(istream& input, UFILE *output);
+void mwesplit(istream& input, UFILE *output, UFILE *ux_stderr);
 
 }
 

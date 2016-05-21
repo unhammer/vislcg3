@@ -33,12 +33,12 @@ URegularExpression *CG_WFTAG = uregex_openC
 	 0, NULL, NULL);
 
 struct Reading {
-		std::string ana;
-		std::string wftag;
+		UString ana;
+		UString wftag;
 };
 
 struct Cohort {
-		std::string form;
+		UString form;
 		std::vector<std::vector<Reading> > readings;
 		std::string postblank;
 };
@@ -150,24 +150,202 @@ void split_and_print(UFILE *output, const Cohort& c, const unsigned int lno) {
 }
 
 
-void mwesplit(istream& input, UFILE *output)
+void mwesplit(istream& input, UFILE *output, UFILE *ux_stderr)
 {
-	Cohort cohort = (Cohort) { "", std::vector<std::vector<Reading> >(), "" };
-	size_t indentation = 0;
-	unsigned int lno = 0;
-	for (UString line; std::getline(input, line);) {
-		++lno;
-		UErrorCode status = U_ZERO_ERROR;
-		uregex_setText(CG_LINE, line.c_str(), line.length(), &status);
+	if (!input.good()) {
+		u_fprintf(ux_stderr, "Error: Input is null - nothing to parse!\n");
+		CG3Quit(1);
+	}
+	if (input.eof()) {
+		u_fprintf(ux_stderr, "Error: Input is empty - nothing to parse!\n");
+		CG3Quit(1);
+	}
+	if (!output) {
+		u_fprintf(ux_stderr, "Error: Output is null - cannot write to nothing!\n");
+		CG3Quit(1);
+	}
+	std::vector<UChar> line(1024, 0);
+	std::vector<UChar> cleaned(line.size(), 0);
+	bool ignoreinput = false;
 
-		std::match_results<const char*> result;
-		std::regex_match(line.c_str(), result, CG_LINE);
-		if(!result.empty() && result[2].length() != 0) {
-			split_and_print(output, cohort, lno);
-			cohort = { result[2], {}, "" };
-			indentation = 0;
+	Cohort cohort = (Cohort) { UString(), std::vector<std::vector<Reading> >(), "" };
+	std::vector<std::pair<size_t, Reading*> > indents;
+
+	size_t indentation = 0;
+	uint32_t numLines = 0;
+
+	while (!input.eof()) {
+		size_t offset = 0, packoff = 0;
+		// Read as much of the next line as will fit in the current buffer
+		while (input.gets(&line[offset], line.size() - offset - 1)) {
+			// Copy the segment just read to cleaned
+			for (size_t i = offset; i < line.size(); ++i) {
+				// Only copy one space character, regardless of how many are in input
+				if (ISSPACE(line[i]) && !ISNL(line[i])) {
+					cleaned[packoff++] = ' ';
+					while (ISSPACE(line[i]) && !ISNL(line[i])) {
+						++i;
+					}
+				}
+				// Break if there is a newline
+				if (ISNL(line[i])) {
+					cleaned[packoff + 1] = cleaned[packoff] = 0;
+					goto gotaline; // Oh how I wish C++ had break 2;
+				}
+				if (line[i] == 0) {
+					cleaned[packoff + 1] = cleaned[packoff] = 0;
+					break;
+				}
+				cleaned[packoff++] = line[i];
+			}
+			// If we reached this, buffer wasn't big enough. Double the size of the buffer and try again.
+			offset = line.size() - 2;
+			line.resize(line.size() * 2, 0);
+			cleaned.resize(line.size() + 1, 0);
 		}
-		else if(!result.empty() && result[3].length() != 0) {
+
+	gotaline:
+		// Trim trailing whitespace
+		while (cleaned[0] && ISSPACE(cleaned[packoff - 1])) {
+			cleaned[packoff - 1] = 0;
+			--packoff;
+		}
+		if (!ignoreinput && cleaned[0] == '"' && cleaned[1] == '<') {
+			UChar *space = &cleaned[0];
+			if (space[0] == '"' && space[1] == '<') {
+				++space;
+				SKIPTO_NOSPAN(space, '"');
+				while (*space && space[-1] != '>') {
+					++space;
+					SKIPTO_NOSPAN(space, '"');
+				}
+				SKIPTOWS(space, 0, true, true);
+				--space;
+			}
+			if (space[0] != '"' || space[-1] != '>') {
+				u_fprintf(ux_stderr, "Warning: %S on line %u looked like a cohort but wasn't - treated as text.\n", &cleaned[0], numLines);
+				u_fflush(ux_stderr);
+				goto istext;
+			}
+			space[1] = 0;
+			split_and_print(output, cohort, numLines);
+			cohort = (Cohort) {
+				&cleaned[0],
+				std::vector<std::vector<Reading> >(),
+				""
+			};
+			indentation = 0;
+			indents.clear();
+		}
+		else if (cleaned[0] == ' ' && cleaned[1] == '"' // && cCohort
+			) {
+			// Count current indent level
+			size_t indent = 0;
+			while (ISSPACE(line[indent])) {
+				++indent;
+			}
+			while (!indents.empty() && indent <= indents.back().first) {
+				indents.pop_back();
+			}
+			if (!indents.empty() && indent > indents.back().first) {
+				if (indents.back().second->next) {
+					u_fprintf(ux_stderr, "Warning: Sub-reading %S on line %u will be ignored and lost as each reading currently only can have one sub-reading.\n", &cleaned[0], numLines);
+					u_fflush(ux_stderr);
+					continue;
+				}
+			}
+			else {
+				cReading = alloc_reading(cCohort);
+			}
+
+			UChar *space = &cleaned[1];
+			UChar *base = space;
+			if (*space == '"') {
+				++space;
+				SKIPTO_NOSPAN(space, '"');
+				SKIPTOWS(space, 0, true, true);
+				--space;
+			}
+
+			std::pair<UString, UString> ana_wf = extr_wftag(&cleaned[0]);
+			Reading r = { ana_wf.first, ana_wf.second };
+			if(cohort.readings.empty()) {
+				cohort.readings.push_back(std::vector<Reading>(1, r));
+			}
+			else if((unsigned)result[3].length() > indentation) {
+				// we know readings non-empty because above if:
+				cohort.readings.back().push_back(r);
+			}
+			else {
+				// indentation same or decreased (CG doesn't allow "ambiguous" subreadings
+				// of a reading, so we always go all the way back up to main cohort here)
+				cohort.readings.push_back(std::vector<Reading>(1, r));
+			}
+			indentation = result[3].length();
+		}
+		else {
+			if (!ignoreinput && cleaned[0] == ' ' && cleaned[1] == '"') {
+				if (true // verbosity_level > 0
+					) {
+					u_fprintf(ux_stderr, "Warning: %S on line %u looked like a reading but there was no containing cohort - treated as plain text.\n", &cleaned[0], numLines);
+					u_fflush(ux_stderr);
+				}
+			}
+		istext:
+			if (cleaned[0]) {
+				if (u_strcmp(&cleaned[0], stringbits[S_CMD_FLUSH].getTerminatedBuffer()) == 0) {
+					u_fprintf(ux_stderr, "Info: FLUSH encountered on line %u. Flushing...\n", numLines);
+					split_and_print(output, cohort, numLines);
+					cohort = (Cohort) {
+						&cleaned[0],
+						std::vector<std::vector<Reading> >(),
+						""
+					};
+					indentation = 0;
+					u_fprintf(output, "%S", &line[0]);
+					line[0] = 0;
+					u_fflush(output);
+					u_fflush(ux_stderr);
+					fflush(stdout);
+					fflush(stderr);
+				}
+				else if (u_strcmp(&cleaned[0], stringbits[S_CMD_IGNORE].getTerminatedBuffer()) == 0) {
+					u_fprintf(ux_stderr, "Info: IGNORE encountered on line %u. Passing through all input...\n", numLines);
+					ignoreinput = true;
+				}
+				else if (u_strcmp(&cleaned[0], stringbits[S_CMD_RESUME].getTerminatedBuffer()) == 0) {
+					u_fprintf(ux_stderr, "Info: RESUME encountered on line %u. Resuming CG...\n", numLines);
+					ignoreinput = false;
+				}
+				else if (u_strcmp(&cleaned[0], stringbits[S_CMD_EXIT].getTerminatedBuffer()) == 0) {
+					u_fprintf(ux_stderr, "Info: EXIT encountered on line %u. Exiting...\n", numLines);
+					u_fprintf(output, "%S", &line[0]);
+					goto CGCMD_EXIT;
+				}
+				// ignore SETVAR, REMVAR
+
+				if (line[0]) {
+					u_fprintf(output, "%S", &line[0]);
+				}
+			}
+		}
+		numLines++;
+		line[0] = cleaned[0] = 0;
+	}
+	for (UString line; // std::getline(input, line)
+		     ;) {
+		// UErrorCode status = U_ZERO_ERROR;
+		// uregex_setText(CG_LINE, line.c_str(), line.length(), &status);
+
+		// std::match_results<const char*> result;
+		// std::regex_match(line.c_str(), result, CG_LINE);
+		// if(!result.empty() && result[2].length() != 0) {
+		// 	split_and_print(output, cohort, lines);
+		// 	cohort = { result[2], {}, "" };
+		// 	indentation = 0;
+		// }
+		// else
+			if(!result.empty() && result[3].length() != 0) {
 			auto ana_wf = extr_wftag(line);
 			Reading r = { ana_wf.first, ana_wf.second };
 			if(cohort.readings.empty()) {
@@ -189,13 +367,14 @@ void mwesplit(istream& input, UFILE *output)
 			// (Might have to output commented word forms then ...)
 		}
 		else {
-			split_and_print(output, cohort, lno);
+			split_and_print(output, cohort, numLines);
 			cohort = { "", {} };
 			indentation = 0;
 			output << line << std::endl;
 		}
 	}
 
-	split_and_print(output, cohort, lno);
+	split_and_print(output, cohort, numLines);
+CGCMD_EXIT:
 }
 }
