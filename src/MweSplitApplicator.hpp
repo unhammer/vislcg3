@@ -20,8 +20,8 @@
 */
 
 #pragma once
-#ifndef 401e916b65a71dd3_MWESPLITAPPLICATOR_HPP
-#define 401e916b65a71dd3_MWESPLITAPPLICATOR_HPP
+#ifndef d01e916b65a71dd3_MWESPLITAPPLICATOR_HPP
+#define d01e916b65a71dd3_MWESPLITAPPLICATOR_HPP
 
 #include "GrammarApplicator.hpp"
 
@@ -29,8 +29,7 @@ namespace CG3 {
 
 class MweSplitApplicator : public virtual GrammarApplicator {
 private:
-	bool did_warn_statictags;
-	bool did_warn_subreadings;
+	// bool did_warn_unhandled_situation;
 
 public:
 	MweSplitApplicator(UFILE *ux_err);

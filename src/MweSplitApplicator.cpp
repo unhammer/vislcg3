@@ -134,10 +134,9 @@ void MweSplitApplicator::printReading(const Reading *reading, UFILE *output) {
 		}
 	}
 
-	if (reading->next && !did_warn_subreadings) {
-		u_fprintf(ux_stderr, "Warning: MweSplit CG format cannot output sub-readings! You are losing information!\n");
+	if (reading->next) {
+		u_fprintf(ux_stderr, "Warning: MweSplit CG format cannot yet output sub-readings! TODO!\n");
 		u_fflush(ux_stderr);
-		did_warn_subreadings = true;
 	}
 }
 
@@ -152,10 +151,9 @@ void MweSplitApplicator::printCohort(Cohort *cohort, UFILE *output) {
 	}
 
 	u_fprintf(output, "%.*S", cohort->wordform->tag.size() - 4, cohort->wordform->tag.c_str() + 2);
-	if (cohort->wread && !did_warn_statictags) {
-		u_fprintf(ux_stderr, "Warning: MweSplit CG format cannot output static tags! You are losing information!\n");
+	if (cohort->wread) {
+		u_fprintf(ux_stderr, "Warning: MweSplit CG format doesn't know what static tags are! TODO!\n");
 		u_fflush(ux_stderr);
-		did_warn_statictags = true;
 	}
 
 	if (!split_mappings) {

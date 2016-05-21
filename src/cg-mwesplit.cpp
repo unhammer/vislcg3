@@ -20,28 +20,26 @@
  */
 
 #include "stdafx.hpp"
-#include "mwesplit.hpp"
+#include "Grammar.hpp"
+#include "MweSplitApplicator.hpp"
 
 #include "version.hpp"
 
-#include <uoptions.h>
-using namespace Options;
 using CG3::CG3Quit;
 
-
+#include <uoptions.h>
 namespace Options {
 enum OPTIONS {
 	HELP1,
 	HELP2,
 	NUM_OPTIONS,
 };
-
 UOption options[] = {
 	UOPTION_DEF_D("help",         'h', UOPT_NO_ARG,       "shows this help"),
 	UOPTION_DEF_D("?",            '?', UOPT_NO_ARG,       "shows this help"),
 };
 }
-
+using namespace Options;
 
 int main(int argc, char ** argv)
 {
