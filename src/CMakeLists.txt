@@ -63,7 +63,7 @@ set(LIBCG3_HEADERS
 	GrammarApplicator.hpp
 	GrammarWriter.hpp
 	Relabeller.hpp
-	mwesplit.hpp
+	MweSplitApplicator.hpp
 	IGrammarParser.hpp
 	Reading.hpp
 	Rule.hpp
@@ -106,7 +106,7 @@ set(LIBCG3_SOURCES
 	GrammarApplicator_runRules.cpp
 	GrammarWriter.cpp
 	Relabeller.cpp
-	mwesplit.cpp
+	MweSplitApplicator.cpp
 	Reading.cpp
 	Rule.cpp
 	Set.cpp
@@ -184,7 +184,7 @@ add_executable(cg-conv
 cg3_link(cg-conv)
 target_link_libraries(cg-conv ${LINKLIB})
 
-add_executable(cg-mwesplit cg-mwesplit.cpp mwesplit.cpp mwesplit.hpp)
+add_executable(cg-mwesplit cg-mwesplit.cpp MweSplitApplicator.cpp MweSplitApplicator.hpp)
 cg3_link(cg-mwesplit)
 target_link_libraries(cg-mwesplit ${LINKLIB})
 

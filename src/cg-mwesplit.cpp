@@ -104,9 +104,27 @@ int main(int argc, char ** argv)
 	ux_stdout = u_finit(stdout, locale_default, codepage_default);
 	ux_stderr = u_finit(stderr, locale_default, codepage_default);
 
+	CG3::Grammar grammar;
 
-	// cxxopts::Options options(argv[0], " - generate grammar checker suggestions from a CG stream");
+	grammar.ux_stderr = ux_stderr;
+	grammar.allocateDummySet();
+	grammar.delimiters = grammar.allocateSet();
+	grammar.addTagToSet(grammar.allocateTag(CG3::stringbits[0].getTerminatedBuffer()), grammar.delimiters);
+	grammar.reindex();
 
-	CG3::istream instream(ux_stdin);
-	CG3::mwesplit(instream, ux_stdout, ux_stderr);
+	CG3::MweSplitApplicator applicator(ux_stderr);
+	applicator.setGrammar(&grammar);
+
+	boost::scoped_ptr<CG3::istream> instream;
+
+	instream.reset(new CG3::istream(ux_stdin));
+
+	applicator.is_conv = true;
+	applicator.verbosity_level = 0;
+	applicator.runGrammarOnText(*instream.get(), ux_stdout);
+
+	u_fclose(ux_stdout);
+	u_fclose(ux_stderr);
+
+	u_cleanup();
 }
