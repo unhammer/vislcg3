@@ -40,16 +40,24 @@ void MweSplitApplicator::runGrammarOnText(istream& input, UFILE *output) {
 }
 
 
-void MweSplitApplicator::printReading(const Reading *reading, UFILE *output) {
+void MweSplitApplicator::printReading(const Reading *reading, UFILE *output, size_t sub) {
 	if (reading->noprint) {
 		return;
 	}
+
 	if (reading->deleted) {
-		return;
+		if (!trace) {
+			return;
+		}
+		u_fputc(';', output);
 	}
-	u_fputc('\t', output);
+
+	for (size_t i = 0; i < sub; ++i) {
+		u_fputc('\t', output);
+	}
+
 	if (reading->baseform) {
-		u_fprintf(output, "[%.*S]", single_tags.find(reading->baseform)->second->tag.size() - 2, single_tags.find(reading->baseform)->second->tag.c_str() + 1);
+		u_fprintf(output, "%S", single_tags.find(reading->baseform)->second->tag.c_str());
 	}
 
 	uint32SortedVector unique;
@@ -103,15 +111,23 @@ void MweSplitApplicator::printReading(const Reading *reading, UFILE *output) {
 			  pr->local_number);
 		}
 		else {
+			pattern = span_pattern_latin.c_str();
+			if (unicode_tags) {
+				pattern = span_pattern_utf.c_str();
+			}
 			if (reading->parent->dep_parent == std::numeric_limits<uint32_t>::max()) {
 				u_fprintf_u(output, pattern,
-				  reading->parent->dep_self,
-				  reading->parent->dep_self);
+				  reading->parent->parent->number,
+				  reading->parent->local_number,
+				  reading->parent->parent->number,
+				  reading->parent->local_number);
 			}
 			else {
 				u_fprintf_u(output, pattern,
-				  reading->parent->dep_self,
-				  reading->parent->dep_parent);
+				  reading->parent->parent->number,
+				  reading->parent->local_number,
+				  pr->parent->number,
+				  pr->local_number);
 			}
 		}
 	}
@@ -134,9 +150,11 @@ void MweSplitApplicator::printReading(const Reading *reading, UFILE *output) {
 		}
 	}
 
+	u_fputc('\n', output);
+
 	if (reading->next) {
-		u_fprintf(ux_stderr, "Warning: MweSplit CG format cannot yet output sub-readings! TODO!\n");
-		u_fflush(ux_stderr);
+		reading->next->deleted = reading->deleted;
+		printReading(reading->next, output, sub + 1);
 	}
 }
 
@@ -146,38 +164,73 @@ void MweSplitApplicator::printCohort(Cohort *cohort, UFILE *output) {
 	if (cohort->local_number == 0) {
 		goto removed;
 	}
-	if (cohort->type & CT_REMOVED) {
-		goto removed;
-	}
 
-	u_fprintf(output, "%.*S", cohort->wordform->tag.size() - 4, cohort->wordform->tag.c_str() + 2);
-	if (cohort->wread) {
-		u_fprintf(ux_stderr, "Warning: MweSplit CG format doesn't know what static tags are! TODO!\n");
-		u_fflush(ux_stderr);
+	if (cohort->type & CT_REMOVED) {
+		if (!trace || trace_no_removed) {
+			goto removed;
+		}
+		u_fputc(';', output);
+		u_fputc(' ', output);
 	}
+	u_fprintf(output, "%S", cohort->wordform->tag.c_str());
+	if (cohort->wread) {
+		foreach (tter, cohort->wread->tags_list) {
+			if (*tter == cohort->wordform->hash) {
+				continue;
+			}
+			const Tag *tag = single_tags[*tter];
+			u_fprintf(output, " %S", tag->tag.c_str());
+		}
+	}
+	u_fputc('\n', output);
 
 	if (!split_mappings) {
 		mergeMappings(*cohort);
 	}
 
-	if (cohort->readings.empty()) {
-		u_fputc('\t', output);
+	foreach (rter1, cohort->readings) {
+		printReading(*rter1, output);
 	}
-	boost_foreach (Reading *rter, cohort->readings) {
-		printReading(rter, output);
+	if (trace && !trace_no_removed) {
+		foreach (rter3, cohort->delayed) {
+			printReading(*rter3, output);
+		}
+		foreach (rter2, cohort->deleted) {
+			printReading(*rter2, output);
+		}
 	}
 
 removed:
-	u_fputc('\n', output);
 	if (!cohort->text.empty() && cohort->text.find_first_not_of(ws) != UString::npos) {
 		u_fprintf(output, "%S", cohort->text.c_str());
 		if (!ISNL(cohort->text[cohort->text.length() - 1])) {
 			u_fputc('\n', output);
 		}
 	}
+
+	foreach (iter, cohort->removed) {
+		printCohort(*iter, output);
+	}
 }
 
 void MweSplitApplicator::printSingleWindow(SingleWindow *window, UFILE *output) {
+	boost_foreach (uint32_t var, window->variables_output) {
+		Tag *key = single_tags[var];
+		BOOST_AUTO(iter, window->variables_set.find(var));
+		if (iter != window->variables_set.end()) {
+			if (iter->second != grammar->tag_any) {
+				Tag *value = single_tags[iter->second];
+				u_fprintf(output, "%S%S=%S>\n", stringbits[S_CMD_SETVAR].getTerminatedBuffer(), key->tag.c_str(), value->tag.c_str());
+			}
+			else {
+				u_fprintf(output, "%S%S>\n", stringbits[S_CMD_SETVAR].getTerminatedBuffer(), key->tag.c_str());
+			}
+		}
+		else {
+			u_fprintf(output, "%S%S>\n", stringbits[S_CMD_REMVAR].getTerminatedBuffer(), key->tag.c_str());
+		}
+	}
+
 	if (!window->text.empty()) {
 		u_fprintf(output, "%S", window->text.c_str());
 		if (!ISNL(window->text[window->text.length() - 1])) {

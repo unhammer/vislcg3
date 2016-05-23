@@ -35,7 +35,7 @@ public:
 	MweSplitApplicator(UFILE *ux_err);
 	void runGrammarOnText(istream& input, UFILE *output);
 
-	void printReading(const Reading *reading, UFILE *output);
+	void printReading(const Reading *reading, UFILE *output, size_t sub = 1);
 	void printCohort(Cohort *cohort, UFILE *output);
 	void printSingleWindow(SingleWindow *window, UFILE *output);
 };
