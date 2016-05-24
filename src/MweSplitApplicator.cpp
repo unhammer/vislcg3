@@ -188,6 +188,43 @@ void MweSplitApplicator::printCohort(Cohort *cohort, UFILE *output) {
 		mergeMappings(*cohort);
 	}
 
+	size_t n_wftags = 0;
+	foreach (rter1, cohort->readings) {
+		foreach (tter, (*rter1)->tags_list) {
+			if ((!show_end_tags && *tter == endtag) || *tter == begintag) {
+				continue;
+			}
+			if (*tter == (*rter1)->baseform || *tter == (*rter1)->parent->wordform->hash) {
+				continue;
+			}
+			const Tag *tag = single_tags[*tter];
+			u_fprintf(output, "tag: %S %u\n", tag->tag.c_str(), tag->type);
+			// If we are to split, there has to be at least one wordform on a head (not-sub) reading
+			if (tag->type & T_WORDFORM) {
+				++n_wftags;
+				u_fprintf(output, "WORDFORM: %S %u\n", tag->tag.c_str(), tag->type);
+			}
+		}
+		u_fprintf(output, "\n");
+		if ((*rter1)->next) {
+			(*rter1)->next->deleted = (*rter1)->deleted;
+			foreach (tter, (*rter1)->next->tags_list) {
+				if ((!show_end_tags && *tter == endtag) || *tter == begintag) {
+					continue;
+				}
+				if (*tter == (*rter1)->next->baseform || *tter == (*rter1)->next->parent->wordform->hash) {
+					continue;
+				}
+				const Tag *tag = single_tags[*tter];
+				u_fprintf(output, "tag: %S %u\n", tag->tag.c_str(), tag->type);
+				// If we are to split, there has to be at least one wordform on a head (not-sub) reading
+				if (tag->type & T_WORDFORM) {
+					u_fprintf(output, "WORDFORM: %S %u\n", tag->tag.c_str(), tag->type);
+				}
+			}
+		}
+	}
+
 	foreach (rter1, cohort->readings) {
 		printReading(*rter1, output);
 	}
