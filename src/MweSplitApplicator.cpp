@@ -206,17 +206,17 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 				rtrimblanks += '\t';
 				rtrimblanks += '\r';
 				size_t i = 1 + wfTag->tag.find_last_not_of(rtrimblanks);;
-				UString form = wfTag->tag.substr(0, i);
-				UString postblank = wfTag->tag.substr(i);
-				c->wordform = addTag(form); // TODO: where are pre/postblanks stored?
+				c->wordform = addTag(wfTag->tag.substr(0, i));
+				c->text = wfTag->tag.substr(i);
 				while(cos.size() < pos+1) {
-					u_fprintf(ux_stderr, "cos.push_back '%S'\n", c->wordform->tag.c_str());
+					u_fprintf(ux_stderr, "cos.push_back '%S' (postblank: '%S')\n", c->wordform->tag.c_str(), c->text.c_str());
 					cos.push_back(c);
 				}
-	// 			if(cos[pos].form != c.form) {
-	// 				std::cerr << "WARNING: Line " << lno << ": Ambiguous word form tags for same cohort, '" << cos[pos].form << "' vs '" << s.wftag << "'"<< std::endl;
-	// 			}
-	// 			cos[pos].readings.push_back({});
+				if(cos[pos]->wordform != c->wordform) {
+					u_fprintf(ux_stderr, "WARNING: Line %u: Ambiguous word form tags for same cohort, '%S' vs '%S'\n", cos[pos]->wordform->tag.c_str(), c->wordform->tag.c_str());
+				}
+				Reading* r;
+				cos[pos]->readings.push_back(r);
 			}
 	// 		size_t level = cos[pos]->readings.back()->size();
 	// 		Reading n = { reindent(s.ana, level), "" };
