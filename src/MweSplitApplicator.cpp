@@ -193,34 +193,38 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 	// TODO: split
 	foreach(r, cohort->readings) {
 		size_t pos = -1;
+		Reading *prev = NULL;	// prev->next == sub || prev == NULL
 		Reading *sub = (*r);
 		while (sub) {
 			const Tag* wfTag = maybeWfTag(sub);
 			if(wfTag != NULL) {
 				++pos;
-				Cohort* c = alloc_cohort(cohort->parent);
-				c->global_number = gWindow->cohort_counter++;
-				UString rtrimblanks;
-				rtrimblanks += ' ';
-				rtrimblanks += '\n';
-				rtrimblanks += '\t';
-				rtrimblanks += '\r';
-				size_t i = 1 + wfTag->tag.find_last_not_of(rtrimblanks);;
-				c->wordform = addTag(wfTag->tag.substr(0, i));
-				c->text = wfTag->tag.substr(i);
 				while(cos.size() < pos+1) {
+					Cohort* c = alloc_cohort(cohort->parent);
+					c->global_number = gWindow->cohort_counter++;
+					c->local_number = cohort->local_number; // maybe look at what ADDCOHORT does
+					UString blanks;
+					blanks += ' '; blanks += '\n'; blanks += '\t'; blanks += '\r';
+					size_t i = 1 + wfTag->tag.find_last_not_of(blanks);;
+					c->wordform = addTag(wfTag->tag.substr(0, i));
+					c->text = wfTag->tag.substr(i);
 					u_fprintf(ux_stderr, "cos.push_back '%S' (postblank: '%S')\n", c->wordform->tag.c_str(), c->text.c_str());
 					cos.push_back(c);
+					if(cos[pos]->wordform != c->wordform) {
+						u_fprintf(ux_stderr, "WARNING: Line %u: Ambiguous word form tags for same cohort, '%S' vs '%S'\n", cos[pos]->wordform->tag.c_str(), c->wordform->tag.c_str());
+					}
 				}
-				if(cos[pos]->wordform != c->wordform) {
-					u_fprintf(ux_stderr, "WARNING: Line %u: Ambiguous word form tags for same cohort, '%S' vs '%S'\n", cos[pos]->wordform->tag.c_str(), c->wordform->tag.c_str());
+				if(prev != NULL) {
+					// prev->next->deleted = true;
+					prev->next = 0;
 				}
-				Reading* r;
-				cos[pos]->readings.push_back(r);
 			}
-	// 		size_t level = cos[pos]->readings.back()->size();
-	// 		Reading n = { reindent(s.ana, level), "" };
-	// 		cos[pos].readings.back().push_back(n);
+			// 		size_t level = cos[pos]->readings.back()->size();
+			Reading *r = new Reading(*sub); // leak TODO
+			// 		Reading n = { reindent(s.ana, level), "" };
+			// TODO: here we want to make r a subreading of the correct level, so it has to be the "next" of the last r
+			cos[pos]->appendReading(r);
+			prev = sub;
 			sub = sub->next;
 		}
 	}
@@ -360,6 +364,7 @@ void MweSplitApplicator::printSingleWindow(SingleWindow *window, UFILE *output) 
 		Cohort *cohort = window->cohorts[c];
 		std::vector<Cohort*> cs = splitMwe(cohort);
 		foreach(iter, cs) {
+			u_fprintf(ux_stderr, "printCohort '%S'\n", (*iter)->wordform->tag.c_str());
 			printCohort(*iter, output);
 		}
 	}
