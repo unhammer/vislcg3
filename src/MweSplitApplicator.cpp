@@ -20,12 +20,6 @@
 */
 
 #include "MweSplitApplicator.hpp"
-#include "Strings.hpp"
-#include "Tag.hpp"
-#include "Grammar.hpp"
-#include "Window.hpp"
-#include "SingleWindow.hpp"
-#include "Reading.hpp"
 
 namespace CG3 {
 
@@ -158,6 +152,117 @@ void MweSplitApplicator::printReading(const Reading *reading, UFILE *output, siz
 	}
 }
 
+bool MweSplitApplicator::hasWfTag(const Reading* r) {
+	foreach (tter, r->tags_list) {
+		if ((!show_end_tags && *tter == endtag) || *tter == begintag) {
+			continue;
+		}
+		if (*tter == r->baseform || *tter == r->parent->wordform->hash) {
+			continue;
+		}
+		const Tag *tag = single_tags[*tter];
+		// If we are to split, there has to be at least one wordform on a head (not-sub) reading
+		if (tag->type & T_WORDFORM) {
+			return true;
+		}
+	}
+	return false;
+
+}
+
+std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
+	std::vector<Cohort*> cos;
+	size_t n_wftags = 0;
+	size_t n_goodreadings = 0;
+	foreach (rter1, cohort->readings) {
+		if(hasWfTag(*rter1)) {
+			++n_wftags;
+		}
+		++n_goodreadings;
+	}
+
+	if(n_wftags < n_goodreadings) {
+		if(n_wftags > 0) {
+			u_fprintf(ux_stderr, "WARNING: Line %u: Some but not all main-readings of \"<%s>\" had wordform-tags (not completely mwe-disambiguated?), not splitting.\n", numLines, cohort->wordform);
+			// We also don't split if wordform-tags were only on sub-readings, but should we warn on such faulty input?
+		}
+		cos.push_back(cohort);
+		return cos;
+	}
+	u_fprintf(ux_stderr, "splitting '%S' ...\n", cohort->wordform->tag.c_str());
+	// TODO: split
+	foreach(r, cohort->readings) {
+		size_t pos = -1;
+		Reading *sub = (*r);
+		while (sub) {
+			if(hasWfTag(sub)) {
+				++pos;
+				Cohort* c = alloc_cohort(cohort->parent); // = cohort_from_wftag(s.wftag);
+				while(cos.size() < pos+1) {
+					cos.push_back(c);
+				}
+	// 			if(cos[pos].form != c.form) {
+	// 				std::cerr << "WARNING: Line " << lno << ": Ambiguous word form tags for same cohort, '" << cos[pos].form << "' vs '" << s.wftag << "'"<< std::endl;
+	// 			}
+	// 			cos[pos].readings.push_back({});
+			}
+	// 		size_t level = cos[pos]->readings.back()->size();
+	// 		Reading n = { reindent(s.ana, level), "" };
+	// 		cos[pos].readings.back().push_back(n);
+			sub = sub->next;
+		}
+	}
+	// The last word forms are the top readings:
+	std::reverse(cos.begin(), cos.end());
+	return cos;
+}
+
+void splitMwe2(bool trace, Cohort& cohort) {
+	std::map<uint32_t, ReadingList> mlist;
+	foreach (iter, cohort.readings) {
+		Reading *r = *iter;
+		uint32_t hp = r->hash; // instead of hash_plain, which doesn't include mapping tags
+		if (trace) {
+			foreach (iter_hb, r->hit_by) {
+				hp = hash_value(*iter_hb, hp);
+			}
+		}
+		Reading *sub = r->next;
+		while (sub) {
+			hp = hash_value(sub->hash, hp);
+			if (trace) {
+				foreach (iter_hb, sub->hit_by) {
+					hp = hash_value(*iter_hb, hp);
+				}
+			}
+			sub = sub->next;
+		}
+		mlist[hp].push_back(r);
+	}
+
+	if (mlist.size() == cohort.readings.size()) {
+		return;
+	}
+
+	cohort.readings.clear();
+	std::vector<Reading*> order;
+
+	std::map<uint32_t, ReadingList>::iterator miter;
+	for (miter = mlist.begin(); miter != mlist.end(); miter++) {
+		ReadingList clist = miter->second;
+		// no merging of mapping tags, so just take first reading of the group
+		order.push_back(clist.front());
+
+		clist.erase(clist.begin());
+		foreach (cit, clist) {
+			free_reading(*cit);
+		}
+	}
+
+	std::sort(order.begin(), order.end(), CG3::Reading::cmp_number);
+	cohort.readings.insert(cohort.readings.begin(), order.begin(), order.end());
+}
+
 void MweSplitApplicator::printCohort(Cohort *cohort, UFILE *output) {
 	const UChar ws[] = { ' ', '\t', 0 };
 
@@ -186,43 +291,6 @@ void MweSplitApplicator::printCohort(Cohort *cohort, UFILE *output) {
 
 	if (!split_mappings) {
 		mergeMappings(*cohort);
-	}
-
-	size_t n_wftags = 0;
-	foreach (rter1, cohort->readings) {
-		foreach (tter, (*rter1)->tags_list) {
-			if ((!show_end_tags && *tter == endtag) || *tter == begintag) {
-				continue;
-			}
-			if (*tter == (*rter1)->baseform || *tter == (*rter1)->parent->wordform->hash) {
-				continue;
-			}
-			const Tag *tag = single_tags[*tter];
-			u_fprintf(output, "tag: %S %u\n", tag->tag.c_str(), tag->type);
-			// If we are to split, there has to be at least one wordform on a head (not-sub) reading
-			if (tag->type & T_WORDFORM) {
-				++n_wftags;
-				u_fprintf(output, "WORDFORM: %S %u\n", tag->tag.c_str(), tag->type);
-			}
-		}
-		u_fprintf(output, "\n");
-		if ((*rter1)->next) {
-			(*rter1)->next->deleted = (*rter1)->deleted;
-			foreach (tter, (*rter1)->next->tags_list) {
-				if ((!show_end_tags && *tter == endtag) || *tter == begintag) {
-					continue;
-				}
-				if (*tter == (*rter1)->next->baseform || *tter == (*rter1)->next->parent->wordform->hash) {
-					continue;
-				}
-				const Tag *tag = single_tags[*tter];
-				u_fprintf(output, "tag: %S %u\n", tag->tag.c_str(), tag->type);
-				// If we are to split, there has to be at least one wordform on a head (not-sub) reading
-				if (tag->type & T_WORDFORM) {
-					u_fprintf(output, "WORDFORM: %S %u\n", tag->tag.c_str(), tag->type);
-				}
-			}
-		}
 	}
 
 	foreach (rter1, cohort->readings) {
@@ -278,7 +346,10 @@ void MweSplitApplicator::printSingleWindow(SingleWindow *window, UFILE *output) 
 	uint32_t cs = (uint32_t)window->cohorts.size();
 	for (uint32_t c = 0; c < cs; c++) {
 		Cohort *cohort = window->cohorts[c];
-		printCohort(cohort, output);
+		std::vector<Cohort*> cs = splitMwe(cohort);
+		foreach(iter, cs) {
+			printCohort(*iter, output);
+		}
 	}
 	u_fputc('\n', output);
 	u_fflush(output);

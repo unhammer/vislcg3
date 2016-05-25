@@ -24,12 +24,21 @@
 #define d01e916b65a71dd3_MWESPLITAPPLICATOR_HPP
 
 #include "GrammarApplicator.hpp"
+#include "Strings.hpp"
+#include "Tag.hpp"
+#include "Grammar.hpp"
+#include "Window.hpp"
+#include "SingleWindow.hpp"
+#include "Reading.hpp"
+#include "Cohort.hpp"
 
 namespace CG3 {
 
 class MweSplitApplicator : public virtual GrammarApplicator {
 private:
 	// bool did_warn_unhandled_situation;
+	bool hasWfTag(const Reading* r);
+	std::vector<Cohort*> splitMwe(Cohort* cohort);
 
 public:
 	MweSplitApplicator(UFILE *ux_err);
