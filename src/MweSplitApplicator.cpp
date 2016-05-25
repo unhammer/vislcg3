@@ -24,7 +24,7 @@
 namespace CG3 {
 
 MweSplitApplicator::MweSplitApplicator(UFILE *ux_err)
-  : GrammarApplicator(ux_err)
+	: GrammarApplicator(ux_err)
 {
 }
 
@@ -152,7 +152,7 @@ void MweSplitApplicator::printReading(const Reading *reading, UFILE *output, siz
 	}
 }
 
-bool MweSplitApplicator::hasWfTag(const Reading* r) {
+const Tag* MweSplitApplicator::maybeWfTag(const Reading* r) {
 	foreach (tter, r->tags_list) {
 		if ((!show_end_tags && *tter == endtag) || *tter == begintag) {
 			continue;
@@ -163,10 +163,10 @@ bool MweSplitApplicator::hasWfTag(const Reading* r) {
 		const Tag *tag = single_tags[*tter];
 		// If we are to split, there has to be at least one wordform on a head (not-sub) reading
 		if (tag->type & T_WORDFORM) {
-			return true;
+			return tag;
 		}
 	}
-	return false;
+	return NULL;
 
 }
 
@@ -175,7 +175,7 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 	size_t n_wftags = 0;
 	size_t n_goodreadings = 0;
 	foreach (rter1, cohort->readings) {
-		if(hasWfTag(*rter1)) {
+		if(maybeWfTag(*rter1) != NULL) {
 			++n_wftags;
 		}
 		++n_goodreadings;
@@ -189,16 +189,28 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 		cos.push_back(cohort);
 		return cos;
 	}
-	u_fprintf(ux_stderr, "splitting '%S' ...\n", cohort->wordform->tag.c_str());
+	u_fprintf(ux_stderr, "splitting '%S'\n", cohort->wordform->tag.c_str());
 	// TODO: split
 	foreach(r, cohort->readings) {
 		size_t pos = -1;
 		Reading *sub = (*r);
 		while (sub) {
-			if(hasWfTag(sub)) {
+			const Tag* wfTag = maybeWfTag(sub);
+			if(wfTag != NULL) {
 				++pos;
-				Cohort* c = alloc_cohort(cohort->parent); // = cohort_from_wftag(s.wftag);
+				Cohort* c = alloc_cohort(cohort->parent);
+				c->global_number = gWindow->cohort_counter++;
+				UString rtrimblanks;
+				rtrimblanks += ' ';
+				rtrimblanks += '\n';
+				rtrimblanks += '\t';
+				rtrimblanks += '\r';
+				size_t i = 1 + wfTag->tag.find_last_not_of(rtrimblanks);;
+				UString form = wfTag->tag.substr(0, i);
+				UString postblank = wfTag->tag.substr(i);
+				c->wordform = addTag(form); // TODO: where are pre/postblanks stored?
 				while(cos.size() < pos+1) {
+					u_fprintf(ux_stderr, "cos.push_back '%S'\n", c->wordform->tag.c_str());
 					cos.push_back(c);
 				}
 	// 			if(cos[pos].form != c.form) {

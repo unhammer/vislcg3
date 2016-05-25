@@ -37,7 +37,7 @@ namespace CG3 {
 class MweSplitApplicator : public virtual GrammarApplicator {
 private:
 	// bool did_warn_unhandled_situation;
-	bool hasWfTag(const Reading* r);
+	const Tag* maybeWfTag(const Reading* r);
 	std::vector<Cohort*> splitMwe(Cohort* cohort);
 
 public:
