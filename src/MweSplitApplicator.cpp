@@ -34,124 +34,6 @@ void MweSplitApplicator::runGrammarOnText(istream& input, UFILE *output) {
 }
 
 
-void MweSplitApplicator::printReading(const Reading *reading, UFILE *output, size_t sub) {
-	if (reading->noprint) {
-		return;
-	}
-
-	if (reading->deleted) {
-		if (!trace) {
-			return;
-		}
-		u_fputc(';', output);
-	}
-
-	for (size_t i = 0; i < sub; ++i) {
-		u_fputc('\t', output);
-	}
-
-	if (reading->baseform) {
-		u_fprintf(output, "%S", single_tags.find(reading->baseform)->second->tag.c_str());
-	}
-
-	uint32SortedVector unique;
-	foreach (tter, reading->tags_list) {
-		if ((!show_end_tags && *tter == endtag) || *tter == begintag) {
-			continue;
-		}
-		if (*tter == reading->baseform || *tter == reading->parent->wordform->hash) {
-			continue;
-		}
-		if (unique_tags) {
-			if (unique.find(*tter) != unique.end()) {
-				continue;
-			}
-			unique.insert(*tter);
-		}
-		const Tag *tag = single_tags[*tter];
-		if (tag->type & T_DEPENDENCY && has_dep && !dep_original) {
-			continue;
-		}
-		if (tag->type & T_RELATION && has_relations) {
-			continue;
-		}
-		u_fprintf(output, " %S", tag->tag.c_str());
-	}
-
-	if (has_dep && !(reading->parent->type & CT_REMOVED)) {
-		if (!reading->parent->dep_self) {
-			reading->parent->dep_self = reading->parent->global_number;
-		}
-		const Cohort *pr = 0;
-		pr = reading->parent;
-		if (reading->parent->dep_parent != std::numeric_limits<uint32_t>::max()) {
-			if (reading->parent->dep_parent == 0) {
-				pr = reading->parent->parent->cohorts[0];
-			}
-			else if (reading->parent->parent->parent->cohort_map.find(reading->parent->dep_parent) != reading->parent->parent->parent->cohort_map.end()) {
-				pr = reading->parent->parent->parent->cohort_map[reading->parent->dep_parent];
-			}
-		}
-
-		const UChar local_utf_pattern[] = { ' ', '#', '%', 'u', L'\u2192', '%', 'u', 0 };
-		const UChar local_latin_pattern[] = { ' ', '#', '%', 'u', '-', '>', '%', 'u', 0 };
-		const UChar *pattern = local_latin_pattern;
-		if (unicode_tags) {
-			pattern = local_utf_pattern;
-		}
-		if (!dep_has_spanned) {
-			u_fprintf_u(output, pattern,
-			  reading->parent->local_number,
-			  pr->local_number);
-		}
-		else {
-			pattern = span_pattern_latin.c_str();
-			if (unicode_tags) {
-				pattern = span_pattern_utf.c_str();
-			}
-			if (reading->parent->dep_parent == std::numeric_limits<uint32_t>::max()) {
-				u_fprintf_u(output, pattern,
-				  reading->parent->parent->number,
-				  reading->parent->local_number,
-				  reading->parent->parent->number,
-				  reading->parent->local_number);
-			}
-			else {
-				u_fprintf_u(output, pattern,
-				  reading->parent->parent->number,
-				  reading->parent->local_number,
-				  pr->parent->number,
-				  pr->local_number);
-			}
-		}
-	}
-
-	if (reading->parent->type & CT_RELATED) {
-		u_fprintf(output, " ID:%u", reading->parent->global_number);
-		if (!reading->parent->relations.empty()) {
-			foreach (miter, reading->parent->relations) {
-				boost_foreach (uint32_t siter, miter->second) {
-					u_fprintf(output, " R:%S:%u", grammar->single_tags.find(miter->first)->second->tag.c_str(), siter);
-				}
-			}
-		}
-	}
-
-	if (trace) {
-		foreach (iter_hb, reading->hit_by) {
-			u_fputc(' ', output);
-			printTrace(output, *iter_hb);
-		}
-	}
-
-	u_fputc('\n', output);
-
-	if (reading->next) {
-		reading->next->deleted = reading->deleted;
-		printReading(reading->next, output, sub + 1);
-	}
-}
-
 const Tag* MweSplitApplicator::maybeWfTag(const Reading* r) {
 	foreach (tter, r->tags_list) {
 		if ((!show_end_tags && *tter == endtag) || *tter == begintag) {
@@ -194,10 +76,12 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 	foreach(r, cohort->readings) {
 		size_t pos = -1;
 		Reading *prev = NULL;	// prev == NULL || prev->next == rNew (or a ->next of rNew)
-		Reading *sub = (*r);
-		while (sub) {
+		for(Reading *sub = (*r); sub; sub = sub->next) {
 			const Tag* wfTag = maybeWfTag(sub);
-			if(wfTag != NULL) {
+			if(wfTag == NULL) {
+				prev = prev->next;
+			}
+			else {
 				++pos;
 				Cohort* c;
 				while(cos.size() < pos+1) {
@@ -208,9 +92,9 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 				}
 				c = cos[pos];
 
-				size_t wfEnd = wfTag->tag.size()-3; // index before the final '>"'
-				size_t i = 1 + wfTag->tag.find_last_not_of(rtrimblank, wfEnd);
-				UString wf = wfTag->tag.substr(0, i) + wfTag->tag.substr(wfEnd+1);
+				const size_t wfEnd = wfTag->tag.size()-3; // index before the final '>"'
+				const size_t i = 1 + wfTag->tag.find_last_not_of(rtrimblank, wfEnd);
+				const UString &wf = wfTag->tag.substr(0, i) + wfTag->tag.substr(wfEnd+1);
 				if(c->wordform != 0 && wf != c->wordform->tag) {
 					u_fprintf(ux_stderr, "WARNING: Line %u: Ambiguous word form tags for same cohort, '%S' vs '%S'\n", wf.c_str(), c->wordform->tag.c_str());
 				}
@@ -236,10 +120,6 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 				}
 				prev = rNew;
 			}
-			else {
-				prev = prev->next;
-			}
-			sub = sub->next;
 		}
 	}
 	// The last word forms are the top readings:
@@ -247,61 +127,6 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 	return cos;
 }
 
-
-void MweSplitApplicator::printCohort(Cohort *cohort, UFILE *output) {
-	const UChar ws[] = { ' ', '\t', 0 };
-
-	if (cohort->local_number == 0) {
-		goto removed;
-	}
-
-	if (cohort->type & CT_REMOVED) {
-		if (!trace || trace_no_removed) {
-			goto removed;
-		}
-		u_fputc(';', output);
-		u_fputc(' ', output);
-	}
-	u_fprintf(output, "%S", cohort->wordform->tag.c_str());
-	if (cohort->wread) {
-		foreach (tter, cohort->wread->tags_list) {
-			if (*tter == cohort->wordform->hash) {
-				continue;
-			}
-			const Tag *tag = single_tags[*tter];
-			u_fprintf(output, " %S", tag->tag.c_str());
-		}
-	}
-	u_fputc('\n', output);
-
-	if (!split_mappings) {
-		mergeMappings(*cohort);
-	}
-
-	foreach (rter1, cohort->readings) {
-		printReading(*rter1, output);
-	}
-	if (trace && !trace_no_removed) {
-		foreach (rter3, cohort->delayed) {
-			printReading(*rter3, output);
-		}
-		foreach (rter2, cohort->deleted) {
-			printReading(*rter2, output);
-		}
-	}
-
-removed:
-	if (!cohort->text.empty() && cohort->text.find_first_not_of(ws) != UString::npos) {
-		u_fprintf(output, "%S", cohort->text.c_str());
-		if (!ISNL(cohort->text[cohort->text.length() - 1])) {
-			u_fputc('\n', output);
-		}
-	}
-
-	foreach (iter, cohort->removed) {
-		printCohort(*iter, output);
-	}
-}
 
 void MweSplitApplicator::printSingleWindow(SingleWindow *window, UFILE *output) {
 	boost_foreach (uint32_t var, window->variables_output) {

@@ -44,9 +44,6 @@ public:
 	MweSplitApplicator(UFILE *ux_err);
 	void runGrammarOnText(istream& input, UFILE *output);
 
-	void printReading(const Reading *reading, UFILE *output, size_t sub = 1);
-	void printCohort(Cohort *cohort, UFILE *output);
-	// TODO: How can I reuse printSingleWindow from GrammarApplicator but override printCohort?
 	void printSingleWindow(SingleWindow *window, UFILE *output);
 };
 }
