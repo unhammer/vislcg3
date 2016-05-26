@@ -171,6 +171,8 @@ const Tag* MweSplitApplicator::maybeWfTag(const Reading* r) {
 }
 
 std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
+	const UChar rtrimblank[] = { ' ', '\n', '\r', '\t', 0 };
+	const UChar textprefix[] = { ':', 0 };
 	std::vector<Cohort*> cos;
 	size_t n_wftags = 0;
 	size_t n_goodreadings = 0;
@@ -203,11 +205,12 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 					Cohort* c = alloc_cohort(cohort->parent);
 					c->global_number = gWindow->cohort_counter++;
 					c->local_number = cohort->local_number; // maybe look at what ADDCOHORT does
-					UString blanks;
-					blanks += ' '; blanks += '\n'; blanks += '\t'; blanks += '\r';
-					size_t i = 1 + wfTag->tag.find_last_not_of(blanks);;
-					c->wordform = addTag(wfTag->tag.substr(0, i));
-					c->text = wfTag->tag.substr(i);
+					size_t wfEnd = wfTag->tag.size()-3; // index before the final '>"'
+					size_t i = 1 + wfTag->tag.find_last_not_of(rtrimblank, wfEnd);
+					c->wordform = addTag(wfTag->tag.substr(0, i) + wfTag->tag.substr(wfEnd+1));
+					if(i < wfEnd+1) {
+						c->text = textprefix + wfTag->tag.substr(i, wfEnd+1-i);
+					}
 					u_fprintf(ux_stderr, "cos.push_back '%S' (postblank: '%S')\n", c->wordform->tag.c_str(), c->text.c_str());
 					cos.push_back(c);
 					if(cos[pos]->wordform != c->wordform) {
@@ -219,12 +222,12 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 					prev->next = 0;
 				}
 			}
-			// 		size_t level = cos[pos]->readings.back()->size();
-			Reading *r = new Reading(*sub); // leak TODO
+			Reading *r = alloc_reading(*sub);
 			// 		Reading n = { reindent(s.ana, level), "" };
 			// TODO: here we want to make r a subreading of the correct level, so it has to be the "next" of the last r
 			cos[pos]->appendReading(r);
-			prev = sub;
+			r->parent = cos[pos];
+			prev = r;
 			sub = sub->next;
 		}
 	}
@@ -364,8 +367,8 @@ void MweSplitApplicator::printSingleWindow(SingleWindow *window, UFILE *output) 
 		Cohort *cohort = window->cohorts[c];
 		std::vector<Cohort*> cs = splitMwe(cohort);
 		foreach(iter, cs) {
-			u_fprintf(ux_stderr, "printCohort '%S'\n", (*iter)->wordform->tag.c_str());
 			printCohort(*iter, output);
+			free_cohort(*iter); // window.clear() will just clear the original one, but we may have created new ones …
 		}
 	}
 	u_fputc('\n', output);
