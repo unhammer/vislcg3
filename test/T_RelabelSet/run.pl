@@ -47,7 +47,7 @@ if (-s "grammar.cg3b" && -s "grammar-out.cg3b") {
 `diff -B expected.txt output.txt >diff.txt`;
 
 if (-s "diff.txt") {
-	print STDERR "Fail (expected).\n";
+	print STDERR "Fail.\n";
 } else {
 	print STDERR "Success.\n";
 }
