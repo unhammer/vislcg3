@@ -191,43 +191,54 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 		cos.push_back(cohort);
 		return cos;
 	}
-	u_fprintf(ux_stderr, "splitting '%S'\n", cohort->wordform->tag.c_str());
-	// TODO: split
 	foreach(r, cohort->readings) {
 		size_t pos = -1;
-		Reading *prev = NULL;	// prev->next == sub || prev == NULL
+		Reading *prev = NULL;	// prev == NULL || prev->next == rNew (or a ->next of rNew)
 		Reading *sub = (*r);
 		while (sub) {
 			const Tag* wfTag = maybeWfTag(sub);
 			if(wfTag != NULL) {
 				++pos;
+				Cohort* c;
 				while(cos.size() < pos+1) {
-					Cohort* c = alloc_cohort(cohort->parent);
+					c = alloc_cohort(cohort->parent);
 					c->global_number = gWindow->cohort_counter++;
 					c->local_number = cohort->local_number; // maybe look at what ADDCOHORT does
-					size_t wfEnd = wfTag->tag.size()-3; // index before the final '>"'
-					size_t i = 1 + wfTag->tag.find_last_not_of(rtrimblank, wfEnd);
-					c->wordform = addTag(wfTag->tag.substr(0, i) + wfTag->tag.substr(wfEnd+1));
-					if(i < wfEnd+1) {
-						c->text = textprefix + wfTag->tag.substr(i, wfEnd+1-i);
-					}
-					u_fprintf(ux_stderr, "cos.push_back '%S' (postblank: '%S')\n", c->wordform->tag.c_str(), c->text.c_str());
 					cos.push_back(c);
-					if(cos[pos]->wordform != c->wordform) {
-						u_fprintf(ux_stderr, "WARNING: Line %u: Ambiguous word form tags for same cohort, '%S' vs '%S'\n", cos[pos]->wordform->tag.c_str(), c->wordform->tag.c_str());
+				}
+				c = cos[pos];
+
+				size_t wfEnd = wfTag->tag.size()-3; // index before the final '>"'
+				size_t i = 1 + wfTag->tag.find_last_not_of(rtrimblank, wfEnd);
+				UString wf = wfTag->tag.substr(0, i) + wfTag->tag.substr(wfEnd+1);
+				if(c->wordform != 0 && wf != c->wordform->tag) {
+					u_fprintf(ux_stderr, "WARNING: Line %u: Ambiguous word form tags for same cohort, '%S' vs '%S'\n", wf.c_str(), c->wordform->tag.c_str());
+				}
+				c->wordform = addTag(wf);
+				if(i < wfEnd+1) {
+					c->text = textprefix + wfTag->tag.substr(i, wfEnd+1-i);
+				}
+
+				Reading *rNew = alloc_reading(*sub);
+				for (size_t i = 0; i < rNew->tags_list.size(); ++i) {
+					BOOST_AUTO(&tter, rNew->tags_list[i]);
+					if(tter == wfTag->hash || tter == rNew->parent->wordform->hash) {
+						rNew->tags_list.erase(rNew->tags_list.begin() + i);
+						rNew->tags.erase(tter);
 					}
 				}
+				cos[pos]->appendReading(rNew);
+				rNew->parent = cos[pos];
+
 				if(prev != NULL) {
-					// prev->next->deleted = true;
+					free_reading(prev->next);
 					prev->next = 0;
 				}
+				prev = rNew;
 			}
-			Reading *r = alloc_reading(*sub);
-			// 		Reading n = { reindent(s.ana, level), "" };
-			// TODO: here we want to make r a subreading of the correct level, so it has to be the "next" of the last r
-			cos[pos]->appendReading(r);
-			r->parent = cos[pos];
-			prev = r;
+			else {
+				prev = prev->next;
+			}
 			sub = sub->next;
 		}
 	}
@@ -236,51 +247,6 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort* cohort) {
 	return cos;
 }
 
-void splitMwe2(bool trace, Cohort& cohort) {
-	std::map<uint32_t, ReadingList> mlist;
-	foreach (iter, cohort.readings) {
-		Reading *r = *iter;
-		uint32_t hp = r->hash; // instead of hash_plain, which doesn't include mapping tags
-		if (trace) {
-			foreach (iter_hb, r->hit_by) {
-				hp = hash_value(*iter_hb, hp);
-			}
-		}
-		Reading *sub = r->next;
-		while (sub) {
-			hp = hash_value(sub->hash, hp);
-			if (trace) {
-				foreach (iter_hb, sub->hit_by) {
-					hp = hash_value(*iter_hb, hp);
-				}
-			}
-			sub = sub->next;
-		}
-		mlist[hp].push_back(r);
-	}
-
-	if (mlist.size() == cohort.readings.size()) {
-		return;
-	}
-
-	cohort.readings.clear();
-	std::vector<Reading*> order;
-
-	std::map<uint32_t, ReadingList>::iterator miter;
-	for (miter = mlist.begin(); miter != mlist.end(); miter++) {
-		ReadingList clist = miter->second;
-		// no merging of mapping tags, so just take first reading of the group
-		order.push_back(clist.front());
-
-		clist.erase(clist.begin());
-		foreach (cit, clist) {
-			free_reading(*cit);
-		}
-	}
-
-	std::sort(order.begin(), order.end(), CG3::Reading::cmp_number);
-	cohort.readings.insert(cohort.readings.begin(), order.begin(), order.end());
-}
 
 void MweSplitApplicator::printCohort(Cohort *cohort, UFILE *output) {
 	const UChar ws[] = { ' ', '\t', 0 };
