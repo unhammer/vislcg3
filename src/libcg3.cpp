@@ -24,6 +24,7 @@
 #include "TextualParser.hpp"
 #include "BinaryGrammar.hpp"
 #include "GrammarApplicator.hpp"
+#include "StreamApplicator.hpp"
 #include "Window.hpp"
 #include "SingleWindow.hpp"
 #include "version.hpp"

@@ -64,6 +64,7 @@ set(LIBCG3_HEADERS
 	GrammarWriter.hpp
 	Relabeller.hpp
 	MweSplitApplicator.hpp
+	StreamApplicator.hpp
 	IGrammarParser.hpp
 	Reading.hpp
 	Rule.hpp
@@ -107,6 +108,7 @@ set(LIBCG3_SOURCES
 	GrammarWriter.cpp
 	Relabeller.cpp
 	MweSplitApplicator.cpp
+	StreamApplicator.cpp
 	Reading.cpp
 	Rule.cpp
 	Set.cpp

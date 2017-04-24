@@ -31,9 +31,9 @@ class istream {
 public:
 	istream(UFILE *s, bool strip_bom = true)
 	  : stream(s)
-	  , raw(u_fgetfile(stream))
+	  , raw(s == NULL ? NULL : u_fgetfile(stream))
 	{
-		if (strip_bom) {
+		if (s != NULL && strip_bom) {
 			UChar32 bom = u_fgetcx(stream);
 			if (bom != 0xfeff && bom != static_cast<UChar32>(0xffffffff)) {
 				u_fungetc(bom, stream);
@@ -42,7 +42,9 @@ public:
 	}
 
 	virtual ~istream() {
-		u_fclose(stream);
+		if(stream != NULL) {
+			u_fclose(stream);
+		}
 	}
 
 	virtual bool good() {
@@ -121,6 +123,66 @@ public:
 			return reinterpret_cast<char*>(&buffer[0])[raw_offset++];
 		}
 		return istream::getc_raw();
+	}
+
+private:
+	size_t offset, raw_offset;
+	UString buffer;
+};
+
+class istream_string : public istream {
+// Fake string wrapper with the istream interface
+public:
+	explicit istream_string(UnicodeString& b)
+	  : istream(NULL)
+	  , offset(0)
+	  , raw_offset(0)
+	  , buffer(b.getTerminatedBuffer())
+	{
+		buffer.resize(buffer.size() + 1);
+		buffer.resize(buffer.size() - 1);
+	}
+
+	bool good() {
+		return true;
+	}
+
+	UBool eof() {
+		return (offset >= buffer.size() || raw_offset >= buffer.size() * sizeof(buffer[0]));
+	}
+
+	UChar *gets(UChar *s, int32_t m) {
+		if (offset < buffer.size()) {
+			std::fill(s, s + m, static_cast<UChar>(0));
+			UChar *p = &buffer[offset];
+			UChar *n = p;
+			SKIPLN(n);
+			if (n - p > m) {
+				n = p + m;
+			}
+			std::copy(p, n, s);
+			size_t len = n - p;
+			offset += len;
+			if (!ISNL(n[-1])) {
+				istream_string::gets(s + (len - 1), m - len);
+			}
+			return s;
+		}
+		return NULL;
+	}
+
+	UChar getc() {
+		if (offset < buffer.size()) {
+			return buffer[offset++];
+		}
+		return EOF;
+	}
+
+	int getc_raw() {
+		if (raw_offset < buffer.size() * sizeof(buffer[0])) {
+			return reinterpret_cast<char*>(&buffer[0])[raw_offset++];
+		}
+		return EOF;
 	}
 
 private:
