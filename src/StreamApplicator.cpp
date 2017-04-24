@@ -334,7 +334,6 @@ void StreamApplicator::runGrammarOnText(istream& input, std::ostream& output) {
 		size_t offset = 0, packoff = 0;
 		// Read as much of the next line as will fit in the current buffer
 		while (input.gets(&line[offset], line.size() - offset - 1)) {
-			u_fprintf(ux_stderr, "Line: %S\n", &line[0]);
 			// Copy the segment just read to cleaned
 			for (size_t i = offset; i < line.size(); ++i) {
 				// Only copy one space character, regardless of how many are in input
