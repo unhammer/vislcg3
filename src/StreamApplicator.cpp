@@ -92,19 +92,18 @@ void StreamApplicator::printReading(const Reading *reading, std::ostream& output
 			}
 		}
 
-		const UChar local_utf_pattern[] = { L'\u2192', 0 };
-		const UChar local_latin_pattern[] = { '-', '>', 0 };
-		// const UChar local_utf_pattern[] = { ' ', '#', '%', 'u', L'\u2192', '%', 'u', 0 };
-		// const UChar local_latin_pattern[] = { ' ', '#', '%', 'u', '-', '>', '%', 'u', 0 };
+		const UChar local_utf_pattern[] = { ' ', '#', '%', 'u', L'\u2192', '%', 'u', 0 };
+		const UChar local_latin_pattern[] = { ' ', '#', '%', 'u', '-', '>', '%', 'u', 0 };
 		const UChar *pattern = local_latin_pattern;
 		if (unicode_tags) {
 			pattern = local_utf_pattern;
 		}
 		if (!dep_has_spanned) {
-			output << reading->parent->local_number << pattern << pr->local_number;
-			// u_fprintf_u(output, pattern,
-			//   reading->parent->local_number,
-			//   pr->local_number);
+			std::vector<UChar> u(1024,0);
+			u_sprintf_u(&u[0], pattern,
+			  reading->parent->local_number,
+			  pr->local_number);
+			output << UnicodeString(&u[0]);
 		}
 		else {
 			pattern = span_pattern_latin.c_str();
@@ -118,7 +117,7 @@ void StreamApplicator::printReading(const Reading *reading, std::ostream& output
 				  reading->parent->local_number,
 				  reading->parent->parent->number,
 				  reading->parent->local_number);
-				output << &u[0];
+				output << UnicodeString(&u[0]);
 			}
 			else {
 				std::vector<UChar> u(1024,0);
@@ -127,7 +126,7 @@ void StreamApplicator::printReading(const Reading *reading, std::ostream& output
 				  reading->parent->local_number,
 				  pr->parent->number,
 				  pr->local_number);
-				output << &u[0];
+				output << UnicodeString(&u[0]);
 			}
 		}
 	}
@@ -370,6 +369,7 @@ void StreamApplicator::runGrammarOnText(istream& input, std::ostream& output) {
 			cleaned[packoff - 1] = 0;
 			--packoff;
 		}
+
 		if (!ignoreinput && cleaned[0] == '"' && cleaned[1] == '<') {
 			UChar *space = &cleaned[0];
 			if (space[0] == '"' && space[1] == '<') {
