@@ -278,8 +278,8 @@ void StreamApplicator::runGrammarOnText(istream& input, std::ostream& output) {
 		CG3Quit(1);
 	}
 	if (input.eof()) {
-		u_fprintf(ux_stderr, "Error: Input is empty - nothing to parse!\n");
-		CG3Quit(1);
+		u_fprintf(ux_stderr, "Warning: Input is empty - nothing to parse!\n");
+		// CG3Quit(1);
 	}
 	if (!output) {
 		u_fprintf(ux_stderr, "Error: Output is null - cannot write to nothing!\n");

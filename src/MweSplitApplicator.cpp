@@ -24,13 +24,32 @@
 namespace CG3 {
 
 MweSplitApplicator::MweSplitApplicator(UFILE *ux_err)
-  : GrammarApplicator(ux_err)
+	: GrammarApplicator(ux_err)
+	, StreamApplicator(ux_err)
 {
 }
 
+Grammar* MweSplitApplicator::emptyGrammar(UFILE* ux_stdout, UFILE* ux_stderr) {
+	CG3::Grammar *grammar = new CG3::Grammar;
+	grammar->ux_stderr = ux_stderr;
+	grammar->ux_stdout = ux_stdout;
+	grammar->allocateDummySet();
+	grammar->delimiters = grammar->allocateSet();
+	grammar->addTagToSet(grammar->allocateTag(CG3::stringbits[0].getTerminatedBuffer()), grammar->delimiters);
+	grammar->reindex();
+	return grammar;
+}
 
 void MweSplitApplicator::runGrammarOnText(istream& input, UFILE *output) {
 	GrammarApplicator::runGrammarOnText(input, output);
+}
+
+void MweSplitApplicator::runGrammarOnText(istream& input, std::ostream& output) {
+	StreamApplicator::runGrammarOnText(input, output);
+}
+
+void MweSplitApplicator::runGrammarOnText(std::stringstream& input, std::ostream& output) {
+	StreamApplicator::runGrammarOnText(input, output);
 }
 
 
@@ -165,10 +184,53 @@ void MweSplitApplicator::printSingleWindow(SingleWindow *window, UFILE *output) 
 		Cohort *cohort = window->cohorts[c];
 		std::vector<Cohort*> cs = splitMwe(cohort);
 		foreach (iter, cs) {
-			printCohort(*iter, output);
+			GrammarApplicator::printCohort(*iter, output);
 		}
 	}
 	u_fputc('\n', output);
 	u_fflush(output);
+}
+
+void MweSplitApplicator::printSingleWindow(SingleWindow *window, std::stringstream& output) {
+	boost_foreach (uint32_t var, window->variables_output) {
+		Tag *key = single_tags[var];
+		BOOST_AUTO(iter, window->variables_set.find(var));
+		if (iter != window->variables_set.end()) {
+			if (iter->second != grammar->tag_any) {
+				Tag *value = single_tags[iter->second];
+				std::vector<UChar> u(1024,0);
+				u_sprintf(&u[0], "%S%S=%S>\n", stringbits[S_CMD_SETVAR].getTerminatedBuffer(), key->tag.c_str(), value->tag.c_str());
+				output << UnicodeString(&u[0]);
+			}
+			else {
+				std::vector<UChar> u(1024,0);
+				u_sprintf(&u[0], "%S%S>\n", stringbits[S_CMD_SETVAR].getTerminatedBuffer(), key->tag.c_str());
+				output << UnicodeString(&u[0]);
+			}
+		}
+		else {
+			std::vector<UChar> u(1024,0);
+			u_sprintf(&u[0], "%S%S>\n", stringbits[S_CMD_REMVAR].getTerminatedBuffer(), key->tag.c_str());
+			output << UnicodeString(&u[0]);
+		}
+	}
+
+	if (!window->text.empty()) {
+		output << UnicodeString(window->text.c_str());
+		if (!ISNL(window->text[window->text.length() - 1])) {
+			output << '\n';
+		}
+	}
+
+	uint32_t cs = (uint32_t)window->cohorts.size();
+	for (uint32_t c = 0; c < cs; c++) {
+		Cohort *cohort = window->cohorts[c];
+		std::vector<Cohort*> cs = splitMwe(cohort);
+		foreach (iter, cs) {
+			printCohort(*iter, output);
+		}
+	}
+	output << '\n';
+	output.flush();
 }
 }

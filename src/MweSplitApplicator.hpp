@@ -23,7 +23,7 @@
 #ifndef d01e916b65a71dd3_MWESPLITAPPLICATOR_HPP
 #define d01e916b65a71dd3_MWESPLITAPPLICATOR_HPP
 
-#include "GrammarApplicator.hpp"
+#include "StreamApplicator.hpp"
 #include "Strings.hpp"
 #include "Tag.hpp"
 #include "Grammar.hpp"
@@ -34,7 +34,7 @@
 
 namespace CG3 {
 
-class MweSplitApplicator : public virtual GrammarApplicator {
+class MweSplitApplicator : public virtual StreamApplicator {
 private:
 	// bool did_warn_unhandled_situation;
 	const Tag *maybeWfTag(const Reading *r);
@@ -43,8 +43,13 @@ private:
 public:
 	MweSplitApplicator(UFILE *ux_err);
 	void runGrammarOnText(istream& input, UFILE *output);
+	void runGrammarOnText(std::stringstream& input, std::ostream& output);
+	void runGrammarOnText(CG3::istream& input, std::ostream& output);
 
 	void printSingleWindow(SingleWindow *window, UFILE *output);
+	void printSingleWindow(SingleWindow *window, std::stringstream& output);
+
+	static Grammar* emptyGrammar(UFILE* ux_stdout, UFILE* ux_stderr);
 };
 }
 
