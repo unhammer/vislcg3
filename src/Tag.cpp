@@ -112,18 +112,18 @@ void Tag::parseTagRaw(const UChar *to, Grammar *grammar) {
 
 	tag.assign(tmp, length);
 
-	foreach (iter, grammar->regex_tags) {
+	for (auto iter : grammar->regex_tags) {
 		UErrorCode status = U_ZERO_ERROR;
-		uregex_setText(*iter, tag.c_str(), tag.length(), &status);
+		uregex_setText(iter, tag.c_str(), tag.size(), &status);
 		if (status == U_ZERO_ERROR) {
-			if (uregex_matches(*iter, 0, &status)) {
+			if (uregex_matches(iter, 0, &status)) {
 				type |= T_TEXTUAL;
 			}
 		}
 	}
-	foreach (iter, grammar->icase_tags) {
+	for (auto iter : grammar->icase_tags) {
 		UErrorCode status = U_ZERO_ERROR;
-		if (u_strCaseCompare(tag.c_str(), tag.length(), (*iter)->tag.c_str(), (*iter)->tag.length(), U_FOLD_CASE_DEFAULT, &status) == 0) {
+		if (u_strCaseCompare(tag.c_str(), tag.size(), iter->tag.c_str(), iter->tag.size(), U_FOLD_CASE_DEFAULT, &status) == 0) {
 			type |= T_TEXTUAL;
 		}
 	}
@@ -135,7 +135,7 @@ void Tag::parseTagRaw(const UChar *to, Grammar *grammar) {
 		if (u_sscanf(tag.c_str(), "#%i->%i", &dep_self, &dep_parent) == 2 && dep_self != 0) {
 			type |= T_DEPENDENCY;
 		}
-		const UChar local_dep_unicode[] = { '#', '%', 'i', L'\u2192', '%', 'i', 0 };
+		constexpr UChar local_dep_unicode[] = { '#', '%', 'i', L'\u2192', '%', 'i', 0 };
 		if (u_sscanf_u(tag.c_str(), local_dep_unicode, &dep_self, &dep_parent) == 2 && dep_self != 0) {
 			type |= T_DEPENDENCY;
 		}
@@ -167,21 +167,27 @@ void Tag::parseNumeric() {
 	UChar tkey[256];
 	UChar top[256];
 	UChar txval[256];
-	UChar spn[] = { '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 0 };
+	UChar spn[] = { '-', '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 0 };
 	tkey[0] = 0;
 	top[0] = 0;
 	txval[0] = 0;
-	if (u_sscanf(tag.c_str(), "%*[<]%[^<>=:!]%[<>=:!]%[-MAXIN0-9]%*[>]", &tkey, &top, &txval) == 3 && top[0] && txval[0]) {
-		int32_t tval = 0;
+	if (u_sscanf(tag.c_str(), "%*[<]%[^<>=:!]%[<>=:!]%[-.MAXIN0-9]%*[>]", &tkey, &top, &txval) == 3 && top[0] && txval[0]) {
+		double tval = 0;
 		int32_t r = u_strspn(txval, spn);
 		if (txval[0] == 'M' && txval[1] == 'A' && txval[2] == 'X' && txval[3] == 0) {
-			tval = std::numeric_limits<int32_t>::max();
+			tval = NUMERIC_MAX;
 		}
 		else if (txval[0] == 'M' && txval[1] == 'I' && txval[2] == 'N' && txval[3] == 0) {
-			tval = std::numeric_limits<int32_t>::min();
+			tval = NUMERIC_MIN;
 		}
-		else if (txval[r] || u_sscanf(txval, "%d", &tval) != 1) {
+		else if (txval[r] || u_sscanf(txval, "%lf", &tval) != 1) {
 			return;
+		}
+		if (tval < NUMERIC_MIN) {
+			tval = NUMERIC_MIN;
+		}
+		if (tval > NUMERIC_MAX) {
+			tval = NUMERIC_MAX;
 		}
 		if (top[0] == '<') {
 			comparison_op = OP_LESSTHAN;
@@ -299,7 +305,7 @@ void Tag::allocateVsNames() {
 
 UString Tag::toUString(bool escape) const {
 	UString str;
-	str.reserve(tag.length());
+	str.reserve(tag.size());
 
 	if (type & T_FAILFAST) {
 		str += '^';
@@ -336,7 +342,7 @@ UString Tag::toUString(bool escape) const {
 	}
 
 	if (escape) {
-		for (size_t i = 0; i < tag.length(); ++i) {
+		for (size_t i = 0; i < tag.size(); ++i) {
 			if (tag[i] == '\\' || tag[i] == '(' || tag[i] == ')' || tag[i] == ';' || tag[i] == '#') {
 				str += '\\';
 			}

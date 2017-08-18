@@ -219,7 +219,7 @@ int main(int argc, char *argv[]) {
 		CG3::Set::dump_hashes_out = ux_stderr;
 	}
 
-	CG3::IGrammarParser *parser = 0;
+	std::unique_ptr<CG3::IGrammarParser> parser;
 	FILE *input = fopen(options[GRAMMAR].value, "rb");
 	if (!input) {
 		std::cerr << "Error: Error opening " << options[GRAMMAR].value << " for reading!" << std::endl;
@@ -239,10 +239,10 @@ int main(int argc, char *argv[]) {
 			std::cerr << "Error: --dump-ast is for textual grammars only!" << std::endl;
 			CG3Quit(1);
 		}
-		parser = new CG3::BinaryGrammar(grammar, ux_stderr);
+		parser.reset(new CG3::BinaryGrammar(grammar, ux_stderr));
 	}
 	else {
-		parser = new CG3::TextualParser(grammar, ux_stderr, options[DUMP_AST].doesOccur != 0);
+		parser.reset(new CG3::TextualParser(grammar, ux_stderr, options[DUMP_AST].doesOccur != 0));
 	}
 	if (options[VERBOSE].doesOccur) {
 		if (options[VERBOSE].value) {
@@ -264,13 +264,13 @@ int main(int argc, char *argv[]) {
 	}
 	main_timer = clock();
 
-	if (parser->parse_grammar_from_file(options[GRAMMAR].value, locale_default, codepage_grammar)) {
+	if (parser->parse_grammar(options[GRAMMAR].value, locale_default, codepage_grammar)) {
 		std::cerr << "Error: Grammar could not be parsed - exiting!" << std::endl;
 		CG3Quit(1);
 	}
 
 	if (options[DUMP_AST].doesOccur) {
-		dynamic_cast<CG3::TextualParser*>(parser)->print_ast(ux_stdout);
+		dynamic_cast<CG3::TextualParser*>(parser.get())->print_ast(ux_stdout);
 	}
 
 	if (options[MAPPING_PREFIX].doesOccur) {
@@ -290,8 +290,7 @@ int main(int argc, char *argv[]) {
 	}
 	grammar.reindex(options[SHOW_UNUSED_SETS].doesOccur == 1, options[SHOW_TAGS].doesOccur == 1);
 
-	delete parser;
-	parser = 0;
+	parser.reset();
 
 	if (options[VERBOSE].doesOccur) {
 		std::cerr << "Parsing grammar took " << (clock() - main_timer) / (double)CLOCKS_PER_SEC << " seconds." << std::endl;
@@ -343,9 +342,9 @@ int main(int argc, char *argv[]) {
 
 	if (options[OPTIMIZE_UNSAFE].doesOccur) {
 		std::vector<uint32_t> bad;
-		foreach (ir, grammar.rule_by_number) {
-			if ((*ir)->num_match == 0) {
-				bad.push_back((*ir)->number);
+		for (auto ir : grammar.rule_by_number) {
+			if (ir->num_match == 0) {
+				bad.push_back(ir->number);
 			}
 		}
 		reverse_foreach (br, bad) {
@@ -359,17 +358,17 @@ int main(int argc, char *argv[]) {
 	}
 	if (options[OPTIMIZE_SAFE].doesOccur) {
 		CG3::RuleVector bad;
-		foreach (ir, grammar.rule_by_number) {
-			if ((*ir)->num_match == 0) {
-				bad.push_back(*ir);
+		for (auto ir : grammar.rule_by_number) {
+			if (ir->num_match == 0) {
+				bad.push_back(ir);
 			}
 		}
 		reverse_foreach (br, bad) {
 			grammar.rule_by_number.erase(grammar.rule_by_number.begin() + (*br)->number);
 		}
-		foreach (br, bad) {
-			(*br)->number = grammar.rule_by_number.size();
-			grammar.rule_by_number.push_back(*br);
+		for (auto br : bad) {
+			br->number = grammar.rule_by_number.size();
+			grammar.rule_by_number.push_back(br);
 		}
 		std::cerr << "Optimizer moved " << bad.size() << " rules." << std::endl;
 		grammar.reindex();
@@ -507,9 +506,8 @@ void GAppSetOpts(CG3::GrammarApplicator& applicator, UConverter *conv) {
 			buf[0] = 0;
 			ucnv_toUChars(conv, buf, sn * 3, options[RULE].value, sn, &status);
 
-			foreach (riter, applicator.grammar->rule_by_number) {
-				const CG3::Rule *rule = *riter;
-				if (rule->name && u_strcmp(rule->name, buf) == 0) {
+			for (auto rule : applicator.grammar->rule_by_number) {
+				if (rule->name == buf) {
 					applicator.valid_rules.push_back(rule->number);
 				}
 			}

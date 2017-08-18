@@ -33,7 +33,7 @@ class Set;
 
 typedef std::vector<Set*> SetVector;
 
-enum C_OPS {
+enum C_OPS : uint8_t {
 	OP_NOP,
 	OP_EQUALS,
 	OP_LESSTHAN,
@@ -44,7 +44,7 @@ enum C_OPS {
 	NUM_OPS,
 };
 
-enum {
+enum : uint32_t {
 	T_ANY              = (1 <<  0),
 	T_NUMERICAL        = (1 <<  1),
 	T_MAPPING          = (1 <<  2),
@@ -73,6 +73,8 @@ enum {
 	T_ENCL             = (1 << 25),
 	T_RELATION         = (1 << 26),
 
+	T_REGEXP_LINE      = (1u << 31), // ToDo: Remove for real ordered mode
+
 	MASK_TAG_SPECIAL   = T_ANY | T_TARGET | T_MARK | T_ATTACHTO | T_PAR_LEFT | T_PAR_RIGHT | T_NUMERICAL | T_VARIABLE | T_META | T_FAILFAST | T_CASE_INSENSITIVE | T_REGEXP | T_REGEXP_ANY | T_VARSTRING | T_SET | T_ENCL | T_SAME_BASIC,
 };
 
@@ -81,7 +83,7 @@ public:
 	static UFILE *dump_hashes_out;
 
 	C_OPS comparison_op;
-	int32_t comparison_val;
+	double comparison_val;
 	uint32_t type;
 	uint32_t comparison_hash;
 	uint32_t dep_self, dep_parent;
@@ -90,8 +92,8 @@ public:
 	uint32_t number;
 	uint32_t seed;
 	UString tag;
-	boost::scoped_ptr<SetVector> vs_sets;
-	boost::scoped_ptr<UStringVector> vs_names;
+	std::unique_ptr<SetVector> vs_sets;
+	std::unique_ptr<UStringVector> vs_names;
 	mutable URegularExpression *regexp;
 
 	Tag();
@@ -120,7 +122,7 @@ typedef sorted_vector<Tag*, compare_Tag> TagSortedVector;
 
 template<typename T>
 inline void fill_tagvector(const T& in, TagVector& tags, bool& did, bool& special) {
-	boost_foreach (Tag *tag, in) {
+	for (auto tag : in) {
 		if (tag->type & T_NUMERICAL) {
 			did = true;
 		}

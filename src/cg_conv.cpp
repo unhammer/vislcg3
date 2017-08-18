@@ -108,9 +108,14 @@ int main(int argc, char *argv[]) {
 	CG3::FormatConverter applicator(ux_stderr);
 	applicator.setGrammar(&grammar);
 
-	boost::scoped_ptr<CG3::istream> instream;
+	std::unique_ptr<CG3::istream> instream;
 
 	CG3::CG_FORMATS fmt = CG3::FMT_INVALID;
+
+	if (options[ADD_TAGS].doesOccur) {
+		options[IN_PLAIN].doesOccur = true;
+		dynamic_cast<CG3::PlaintextApplicator&>(applicator).add_tags = true;
+	}
 
 	if (options[IN_CG].doesOccur) {
 		fmt = CG3::FMT_CG;
@@ -233,6 +238,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	applicator.is_conv = true;
+	applicator.trace = true;
 	applicator.verbosity_level = 0;
 	applicator.runGrammarOnText(*instream.get(), ux_stdout);
 

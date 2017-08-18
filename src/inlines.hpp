@@ -25,7 +25,9 @@
 
 namespace CG3 {
 
-const uint32_t CG3_HASH_SEED = 705577479u;
+constexpr double NUMERIC_MIN = static_cast<double>(-(1ll << 48ll));
+constexpr double NUMERIC_MAX = static_cast<double>((1ll << 48ll)-1);
+constexpr uint32_t CG3_HASH_SEED = 705577479u;
 
 /*
 	Paul Hsieh's SuperFastHash from http://www.azillionmonkeys.com/qed/hash.html
@@ -197,6 +199,12 @@ inline uint32_t hash_value(uint64_t c) {
 	//*/
 }
 
+struct hash_ustring {
+	size_t operator()(const UString& str) const {
+		return hash_value(str);
+	}
+};
+
 inline bool ISSPACE(const UChar c) {
 	if (c <= 0xFF && c != 0x09 && c != 0x0A && c != 0x0D && c != 0x20 && c != 0xA0) {
 		return false;
@@ -230,6 +238,10 @@ inline bool ISESC(const UChar *p) {
 		a++;
 	}
 	return (a % 2 == 0);
+}
+
+inline bool ISSPACE(const UChar *p) {
+	return ISSPACE(*p) && !ISESC(p);
 }
 
 template<typename C, size_t N>
@@ -281,7 +293,7 @@ inline uint32_t SKIPWS(UChar *& p, const UChar a = 0, const UChar b = 0, const b
 
 inline uint32_t SKIPTOWS(UChar *& p, const UChar a = 0, const bool allowhash = false, const bool allowscol = false) {
 	uint32_t s = 0;
-	while (*p && !ISSPACE(*p)) {
+	while (*p && !ISSPACE(p)) {
 		if (!allowhash && *p == '#' && !ISESC(p)) {
 			s += SKIPLN(p);
 			--p;
@@ -336,6 +348,15 @@ inline void CG3Quit(const int32_t c = 0, const char *file = 0, const uint32_t li
 		std::cerr << "CG3Quit triggered from " << file << " line " << line << "." << std::endl;
 	}
 	exit(c);
+}
+
+inline constexpr uint64_t make_64(uint32_t hi, uint32_t low) {
+	return (static_cast<uint64_t>(hi) << 32) | static_cast<uint64_t>(low);
+}
+
+template <typename T, size_t N>
+inline constexpr size_t size(T(&)[N]) {
+	return N;
 }
 
 template<typename Cont, typename VT>
@@ -415,12 +436,15 @@ inline void writeSwapped(std::ostream& stream, const T& value) {
 		uint32_t tmp = static_cast<uint32_t>(htonl(static_cast<uint32_t>(value)));
 		stream.write(reinterpret_cast<const char*>(&tmp), sizeof(T));
 	}
-	/*
 	else if (sizeof(T) == 8) {
-		uint64_t tmp = static_cast<uint64_t>(htonll(static_cast<uint64_t>(value)));
+		uint64_t tmp = value;
+#ifndef BIG_ENDIAN
+		const uint32_t high = static_cast<uint32_t>(htonl(static_cast<uint32_t>(tmp >> 32)));
+		const uint32_t low = static_cast<uint32_t>(htonl(static_cast<uint32_t>(tmp & 0xFFFFFFFFULL)));
+		tmp = (static_cast<uint64_t>(low) << 32) | high;
+#endif
 		stream.write(reinterpret_cast<const char*>(&tmp), sizeof(T));
 	}
-	//*/
 	else {
 		throw std::runtime_error("Unhandled type size in writeSwapped()");
 	}
@@ -429,8 +453,20 @@ inline void writeSwapped(std::ostream& stream, const T& value) {
 	}
 }
 
+template<>
+inline void writeSwapped(std::ostream& stream, const double& value) {
+	int exp = 0;
+	uint64_t mant64 = static_cast<uint64_t>(std::numeric_limits<int64_t>::max() * frexp(value, &exp));
+	uint32_t exp32 = static_cast<uint32_t>(exp);
+	writeSwapped(stream, mant64);
+	writeSwapped(stream, exp32);
+}
+
 template<typename T>
 inline T readSwapped(std::istream& stream) {
+	if (!stream) {
+		throw std::runtime_error("Stream was in bad state in readSwapped()");
+	}
 	if (sizeof(T) == 1) {
 		uint8_t tmp = 0;
 		stream.read(reinterpret_cast<char*>(&tmp), sizeof(T));
@@ -446,20 +482,27 @@ inline T readSwapped(std::istream& stream) {
 		stream.read(reinterpret_cast<char*>(&tmp), sizeof(T));
 		return static_cast<T>(ntohl(tmp));
 	}
-	/*
 	else if (sizeof(T) == 8) {
 		uint64_t tmp = 0;
 		stream.read(reinterpret_cast<char*>(&tmp), sizeof(T));
-		return static_cast<T>(ntohll(tmp));
+#ifndef BIG_ENDIAN
+		const uint32_t high = static_cast<uint32_t>(ntohl(static_cast<uint32_t>(tmp >> 32)));
+		const uint32_t low = static_cast<uint32_t>(ntohl(static_cast<uint32_t>(tmp & 0xFFFFFFFFULL)));
+		tmp = (static_cast<uint64_t>(low) << 32) | high;
+#endif
+		return static_cast<T>(tmp);
 	}
-	//*/
-	else {
-		throw std::runtime_error("Unhandled type size in readSwapped()");
-	}
-	if (!stream) {
-		throw std::runtime_error("Stream was in bad state in readSwapped()");
-	}
-	return T();
+	throw std::runtime_error("Unhandled type size in readSwapped()");
+}
+
+template<>
+inline double readSwapped(std::istream& stream) {
+	uint64_t mant64 = readSwapped<uint64_t>(stream);
+	int exp = static_cast<int>(readSwapped<int32_t>(stream));
+
+	double value = static_cast<double>(static_cast<int64_t>(mant64)) / std::numeric_limits<int64_t>::max();
+
+	return ldexp(value, exp);
 }
 
 #ifdef _MSC_VER
@@ -596,6 +639,13 @@ inline size_t fread_throw(void *buffer, size_t size, size_t count, FILE *stream)
 		throw std::runtime_error("fread() did not read all requested objects");
 	}
 	return rv;
+}
+
+inline size_t fread_throw(void *buffer, size_t size, size_t count, std::istream& stream) {
+	if (!stream.read(static_cast<char*>(buffer), size * count)) {
+		throw std::runtime_error("stream did not read all requested objects");
+	}
+	return size * count;
 }
 
 inline size_t fwrite_throw(const void *buffer, size_t size, size_t count, FILE *stream) {

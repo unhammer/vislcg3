@@ -145,8 +145,8 @@ void PlaintextApplicator::runGrammarOnText(istream& input, UFILE *output) {
 					u_fprintf(ux_stderr, "Warning: Soft limit of %u cohorts reached at line %u but found suitable soft delimiter.\n", soft_limit, numLines);
 					u_fflush(ux_stderr);
 				}
-				foreach (iter, cCohort->readings) {
-					addTagToReading(**iter, endtag);
+				for (auto iter : cCohort->readings) {
+					addTagToReading(*iter, endtag);
 				}
 
 				cSWindow->appendCohort(cCohort);
@@ -162,8 +162,8 @@ void PlaintextApplicator::runGrammarOnText(istream& input, UFILE *output) {
 					u_fprintf(ux_stderr, "Warning: Hard limit of %u cohorts reached at line %u - forcing break.\n", hard_limit, numLines);
 					u_fflush(ux_stderr);
 				}
-				foreach (iter, cCohort->readings) {
-					addTagToReading(**iter, endtag);
+				for (auto iter : cCohort->readings) {
+					addTagToReading(*iter, endtag);
 				}
 
 				cSWindow->appendCohort(cCohort);
@@ -264,8 +264,13 @@ void PlaintextApplicator::runGrammarOnText(istream& input, UFILE *output) {
 				lCohort = cCohort;
 				numCohorts++;
 				cReading = initEmptyCohort(*cCohort);
-				cReading->noprint = false;
-				if (first_upper || all_upper || mixed_upper) {
+				cReading->noprint = !add_tags;
+				if (add_tags) {
+					constexpr char _tag[] = "<cg-conv>";
+					tag.assign(_tag, _tag + sizeof(_tag) - 1);
+					addTagToReading(*cReading, addTag(tag));
+				}
+				if (add_tags && (first_upper || all_upper || mixed_upper)) {
 					delTagFromReading(*cReading, cReading->baseform);
 					token.toLower();
 					tag.clear();
@@ -274,17 +279,17 @@ void PlaintextApplicator::runGrammarOnText(istream& input, UFILE *output) {
 					tag += '"';
 					addTagToReading(*cReading, addTag(tag));
 					if (all_upper) {
-						static const char _tag[] = "<all-upper>";
+						constexpr char _tag[] = "<all-upper>";
 						tag.assign(_tag, _tag + sizeof(_tag) - 1);
 						addTagToReading(*cReading, addTag(tag));
 					}
 					if (first_upper) {
-						static const char _tag[] = "<first-upper>";
+						constexpr char _tag[] = "<first-upper>";
 						tag.assign(_tag, _tag + sizeof(_tag) - 1);
 						addTagToReading(*cReading, addTag(tag));
 					}
 					if (mixed_upper && !all_upper) {
-						static const char _tag[] = "<mixed-upper>";
+						constexpr char _tag[] = "<mixed-upper>";
 						tag.assign(_tag, _tag + sizeof(_tag) - 1);
 						addTagToReading(*cReading, addTag(tag));
 					}
@@ -315,8 +320,8 @@ void PlaintextApplicator::runGrammarOnText(istream& input, UFILE *output) {
 		if (cCohort->readings.empty()) {
 			initEmptyCohort(*cCohort);
 		}
-		foreach (iter, cCohort->readings) {
-			addTagToReading(**iter, endtag);
+		for (auto iter : cCohort->readings) {
+			addTagToReading(*iter, endtag);
 		}
 		cReading = 0;
 		cCohort = 0;

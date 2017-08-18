@@ -1,10 +1,11 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 BEGIN { $| = 1; }
 use warnings;
 use strict;
 use File::Spec;
 use Getopt::Long;
 use Digest::SHA qw(sha1_hex);
+Getopt::Long::Configure('no_ignore_case');
 
 # This is updated by the update-revision.pl script.
 my $revision = @REVISION@;
@@ -42,7 +43,7 @@ GetOptions (\%h,
 "no-before-sections",
 "no-sections",
 "no-after-sections",
-"trace|t",
+"trace|t:s",
 "trace-name-only",
 "trace-no-removed",
 "trace-encl",
@@ -65,10 +66,13 @@ GetOptions (\%h,
 "dep-no-crossing",
 "no-magic-readings",
 "no-pass-origin|o",
+"split-mappings",
 "show-end-tags|e",
 "show-unused-sets",
+"show-tags",
 "show-tag-hashes",
-"show-set-hashes"
+"show-set-hashes",
+"dump-ast"
 );
 
 if (defined $h{'grammar-bin'}) {

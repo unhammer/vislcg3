@@ -63,13 +63,15 @@ enum {
 	RF_OUTPUT       = (1 << 24),
 	RF_CAPTURE_UNIF = (1 << 25),
 	RF_REPEAT       = (1 << 26),
+	RF_BEFORE       = (1 << 27),
+	RF_AFTER        = (1 << 28),
 
 	MASK_ENCL       = RF_ENCL_INNER | RF_ENCL_OUTER | RF_ENCL_FINAL | RF_ENCL_ANY,
 };
 
 class Rule {
 public:
-	UChar *name;
+	UString name;
 	Tag *wordform;
 	uint32_t target;
 	uint32_t childset1, childset2;
@@ -78,8 +80,6 @@ public:
 	uint32_t flags;
 	int32_t section;
 	int32_t sub_reading;
-	// ToDo: Add proper "quality" quantifier based on num_fail, num_match, total_time
-	double weight, quality;
 	KEYWORDS type;
 	Set *maplist;
 	Set *sublist;
@@ -104,7 +104,7 @@ public:
 
 typedef std::vector<Rule*> RuleVector;
 typedef std::map<uint32_t, Rule*> RuleByLineMap;
-typedef stdext::hash_map<uint32_t, Rule*> RuleByLineHashMap;
+typedef std::unordered_map<uint32_t, Rule*> RuleByLineHashMap;
 }
 
 #endif

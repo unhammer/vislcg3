@@ -64,7 +64,7 @@ CG3::Grammar *cg3_grammar_load(const char *filename, UFILE *ux_stdout, UFILE *ux
 	grammar->ux_stderr = ux_stderr;
 	grammar->ux_stdout = ux_stdout;
 
-	boost::scoped_ptr<IGrammarParser> parser;
+	std::unique_ptr<IGrammarParser> parser;
 
 	if (cbuffers[0][0] == 'C' && cbuffers[0][1] == 'G' && cbuffers[0][2] == '3' && cbuffers[0][3] == 'B') {
 		parser.reset(new BinaryGrammar(*grammar, ux_stderr));
@@ -76,7 +76,7 @@ CG3::Grammar *cg3_grammar_load(const char *filename, UFILE *ux_stdout, UFILE *ux
 		}
 		parser.reset(new TextualParser(*grammar, ux_stderr));
 	}
-	if (parser->parse_grammar_from_file(filename, uloc_getDefault(), ucnv_getDefaultName())) {
+	if (parser->parse_grammar(filename, uloc_getDefault(), ucnv_getDefaultName())) {
 		u_fprintf(ux_stderr, "Error: Grammar could not be parsed!\n");
 		return 0;
 	}

@@ -48,6 +48,20 @@ class Rule;
 
 typedef std::vector<UnicodeString> regexgrps_t;
 
+struct tmpl_context_t {
+	Cohort *min = 0;
+	Cohort *max = 0;
+	std::vector<const ContextualTest*> linked;
+	bool in_template = false;
+
+	void clear() {
+		min = 0;
+		max = 0;
+		linked.clear();
+		in_template = false;
+	}
+};
+
 struct dSMC_Context {
 	const ContextualTest *test;
 	Cohort **deep;
@@ -168,7 +182,7 @@ protected:
 	uint32_t numReadings;
 
 	bool did_index;
-	uint32SortedVector dep_deep_seen;
+	sorted_vector<std::pair<uint32_t,uint32_t>> dep_deep_seen;
 
 	uint32_t numsections;
 	typedef std::map<int32_t, uint32IntervalVector> RSType;
@@ -192,20 +206,7 @@ protected:
 	uint32_t par_left_pos, par_right_pos;
 	bool did_final_enclosure;
 
-	struct tmpl_context_t {
-		Cohort *min;
-		Cohort *max;
-		const ContextualTest *test;
-
-		tmpl_context_t(const ContextualTest *test)
-		  : min(0)
-		  , max(0)
-		  , test(test)
-		{
-		}
-	};
-	std::vector<tmpl_context_t> tmpl_cntxs;
-	size_t tmpl_cntx_pos;
+	tmpl_context_t tmpl_cntx;
 
 	std::vector<regexgrps_t> regexgrps_store;
 	std::pair<uint8_t, regexgrps_t*> regexgrps;
@@ -257,6 +258,7 @@ protected:
 	enum ST_RETVALS {
 		TRV_BREAK   = (1 <<  0),
 		TRV_BARRIER = (1 <<  1),
+		TRV_BREAK_DEFAULT = (1 <<  2),
 	};
 	Cohort *runSingleTest(Cohort *cohort, const ContextualTest *test, uint8_t& rvs, bool *retval, Cohort **deep = 0, Cohort *origin = 0);
 	Cohort *runSingleTest(SingleWindow *sWindow, size_t i, const ContextualTest *test, uint8_t& rvs, bool *retval, Cohort **deep = 0, Cohort *origin = 0);
@@ -270,6 +272,7 @@ protected:
 	bool doesWordformsMatch(const Tag *cword, const Tag *rword);
 	uint32_t doesTagMatchRegexp(uint32_t test, const Tag& tag, bool bypass_index = false);
 	uint32_t doesTagMatchIcase(uint32_t test, const Tag& tag, bool bypass_index = false);
+	uint32_t doesRegexpMatchLine(const Reading& reading, const Tag& tag, bool bypass_index = false);
 	uint32_t doesRegexpMatchReading(const Reading& reading, const Tag& tag, bool bypass_index = false);
 	uint32_t doesTagMatchReading(const Reading& reading, const Tag& tag, bool unif_mode = false, bool bypass_index = false);
 	bool doesSetMatchReading_trie(const Reading& reading, const Set& theset, const trie_t& trie, bool unif_mode = false);

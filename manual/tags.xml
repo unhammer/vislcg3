@@ -138,8 +138,8 @@
     <para>
       The two special values MIN and MAX (both case-sensitive) will scan the cohort for their respective minimum
       or maximum value, and use that for the comparison.
-      Internally the value is stored in a 32bit signed integer, so usually MIN is equal to -2147483648 and MAX is 2147483647,
-      and using those values will also act such.
+      Internally the value is stored in a double, and the range is capped between -281474976710656.0 to +281474976710655.0,
+      and using values beyond that range will also act as those limits.
       <screen>
         # Select the maximum value of W. Readings with no W will also be removed.
         SELECT (&lt;W=MAX&gt;) ;
@@ -320,6 +320,23 @@
     </para>
   </section>
 
+  <section id="stream-metadata">
+    <title>Stream Metadata</title>
+    <para>
+      CG-3 will <link linkend="streamformats">store and forward</link> any data between cohorts,
+      attached to the preceding cohort.
+      <code>META:/.../r</code> and <code>META:/.../ri</code> lets you query and capture from this data with regular expressions.
+      Data before the first cohort is not accessible.
+    </para>
+    <screen>
+      ADD (@header) (*) IF (-1 (META:/&lt;h\d+&gt;$/ri)) ;
+    </screen>
+    <para>
+      I recommend keeping META tags in the contextual tests, since they cannot currently be cached and will be checked
+      every time.
+    </para>
+  </section>
+
   <section id="global-variables">
     <title>Global Variables</title>
     <para>
@@ -369,21 +386,19 @@
       STRICT-TAGS += N V ADJ etc ... ;
     </screen>
     <para>
-      By default, STRICT-TAGS always allows wordforms, baseforms, and VISL-style secondary tags
+      By default, STRICT-TAGS always allows wordforms, baseforms, regular expressions, case-insensitive, and VISL-style secondary tags
       (<code>"&lt;…&gt;"</code>, <code>"…"</code>, <code>&lt;…&gt;</code>), since those are too prolific to list
       individually. If you are extra paranoid, you can change that with <link linkend="grammar-options">OPTIONS</link>.
     </para>
     <para>
       To get a list of unique used tags, pass --show-tags to CG-3. To filter this list to the default set of interesting tags,
-      something like this can be used:
+      <link linkend="cg-strictify">cg-strictify</link> can be used:
       <screen>
-        vislcg3 --show-tags -g grammar-goes-here | LC_ALL=C sort | egrep -v '^"' | egrep -v '^(/)?&lt;.*&gt;(/r|v)?$' | \
-        egrep -v '^\^' | egrep -v '^VSTR:' | egrep -v '^VAR:' | egrep -v '^_.*_$' | grep -v 'dummy string' | \
-        grep -v '^\*$' | grep -v '^&lt;&lt;&lt;$' | grep -v '^&gt;&gt;&gt;$' &gt; tags.txt
+        cg-strictify grammar-goes-here
       </screen>
       <emphasis>For comparison, this yields 285 tags for VISL's 10000-rule Danish grammar.</emphasis>
       Edit the resulting list to remove any tags you can see are typos or should otherwise not be allowed,
-      collapse the list to a line, stuff it at the top of the grammar with STRICT-TAGS, and recompile the grammar.
+      stuff it at the top of the grammar, and recompile the grammar.
       Any errors you get will be lines where forbidden tags are used, which can be whole sets if those sets aren't used in any rules.
     </para>
     <para>

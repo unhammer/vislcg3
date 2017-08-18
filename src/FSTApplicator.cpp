@@ -31,7 +31,7 @@ namespace CG3 {
 
 FSTApplicator::FSTApplicator(UFILE *ux_err)
   : GrammarApplicator(ux_err)
-  , wfactor(100.0)
+  , wfactor(1.0)
 {
 	wtag += 'W';
 	sub_delims += '#';
@@ -166,11 +166,12 @@ void FSTApplicator::runGrammarOnText(istream& input, UFILE *output) {
 			}
 
 			++space;
-			while (space && (space[0] != '+' || space[1] != '?' || space[2] != 0)) {
+			while (space && *space && (space[0] != '+' || space[1] != '?' || space[2] != 0)) {
 				cReading = alloc_reading(cCohort);
 				insert_if_exists(cReading->parent->possible_sets, grammar->sets_any);
 				addTagToReading(*cReading, cCohort->wordform);
 
+				constexpr UChar notag[] = { '_', 0 };
 				const UChar *base = space;
 				TagList mappings;
 
@@ -191,12 +192,12 @@ void FSTApplicator::runGrammarOnText(istream& input, UFILE *output) {
 					}
 					buf[i] = 0;
 					if (strcmp(buf, "inf") == 0) {
-						i = sprintf(buf, "%d", std::numeric_limits<int32_t>::max());
+						i = sprintf(buf, "%f", NUMERIC_MAX);
 					}
 					else {
 						weight = strtof(buf, 0);
 						weight *= wfactor;
-						i = sprintf(buf, "%.0f", weight);
+						i = sprintf(buf, "%f", weight);
 					}
 					wtag_buf.clear();
 					wtag_buf.reserve(wtag.size() + i + 3);
@@ -212,7 +213,7 @@ void FSTApplicator::runGrammarOnText(istream& input, UFILE *output) {
 				UChar *plus = u_strchr(space, '+');
 				if (plus) {
 					++plus;
-					const UChar cplus[] = { '+', 0 };
+					constexpr UChar cplus[] = { '+', 0 };
 					int32_t p = u_strspn(plus, cplus);
 					space = plus + p;
 					--space;
@@ -240,6 +241,11 @@ void FSTApplicator::runGrammarOnText(istream& input, UFILE *output) {
 							tag += base;
 							tag += '"';
 							base = tag.c_str();
+						}
+						if (base[0] == 0) {
+							base = notag;
+							u_fprintf(ux_stderr, "Warning: Line %u had empty tag.\n", numLines);
+							u_fflush(ux_stderr);
 						}
 						Tag *tag = addTag(base);
 						if (tag->type & T_MAPPING || tag->tag[0] == grammar->mapping_prefix) {
@@ -326,8 +332,8 @@ void FSTApplicator::runGrammarOnText(istream& input, UFILE *output) {
 					u_fprintf(ux_stderr, "Warning: Soft limit of %u cohorts reached at line %u but found suitable soft delimiter.\n", soft_limit, numLines);
 					u_fflush(ux_stderr);
 				}
-				foreach (iter, cCohort->readings) {
-					addTagToReading(**iter, endtag);
+				for (auto iter : cCohort->readings) {
+					addTagToReading(*iter, endtag);
 				}
 
 				cSWindow->appendCohort(cCohort);
@@ -341,8 +347,8 @@ void FSTApplicator::runGrammarOnText(istream& input, UFILE *output) {
 					u_fprintf(ux_stderr, "Warning: Hard limit of %u cohorts reached at line %u - forcing break.\n", hard_limit, numLines);
 					u_fflush(ux_stderr);
 				}
-				foreach (iter, cCohort->readings) {
-					addTagToReading(**iter, endtag);
+				for (auto iter : cCohort->readings) {
+					addTagToReading(*iter, endtag);
 				}
 
 				cSWindow->appendCohort(cCohort);
@@ -407,8 +413,8 @@ void FSTApplicator::runGrammarOnText(istream& input, UFILE *output) {
 		if (cCohort->readings.empty()) {
 			initEmptyCohort(*cCohort);
 		}
-		foreach (iter, cCohort->readings) {
-			addTagToReading(**iter, endtag);
+		for (auto iter : cCohort->readings) {
+			addTagToReading(*iter, endtag);
 		}
 		cReading = 0;
 		cCohort = 0;

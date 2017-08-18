@@ -54,14 +54,14 @@ void MweSplitApplicator::runGrammarOnText(std::stringstream& input, std::ostream
 
 
 const Tag *MweSplitApplicator::maybeWfTag(const Reading *r) {
-	foreach (tter, r->tags_list) {
-		if ((!show_end_tags && *tter == endtag) || *tter == begintag) {
+	for (auto tter : r->tags_list) {
+		if ((!show_end_tags && tter == endtag) || tter == begintag) {
 			continue;
 		}
-		if (*tter == r->baseform || *tter == r->parent->wordform->hash) {
+		if (tter == r->baseform || tter == r->parent->wordform->hash) {
 			continue;
 		}
-		const Tag *tag = single_tags[*tter];
+		const Tag *tag = single_tags[tter];
 		// If we are to split, there has to be at least one wordform on a head (not-sub) reading
 		if (tag->type & T_WORDFORM) {
 			return tag;
@@ -71,13 +71,13 @@ const Tag *MweSplitApplicator::maybeWfTag(const Reading *r) {
 }
 
 std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort *cohort) {
-	const UChar rtrimblank[] = { ' ', '\n', '\r', '\t', 0 };
-	const UChar textprefix[] = { ':', 0 };
+	constexpr UChar rtrimblank[] = { ' ', '\n', '\r', '\t', 0 };
+	constexpr UChar textprefix[] = { ':', 0 };
 	std::vector<Cohort*> cos;
 	size_t n_wftags = 0;
 	size_t n_goodreadings = 0;
-	foreach (rter1, cohort->readings) {
-		if (maybeWfTag(*rter1) != NULL) {
+	for (auto rter1 : cohort->readings) {
+		if (maybeWfTag(rter1) != NULL) {
 			++n_wftags;
 		}
 		++n_goodreadings;
@@ -91,10 +91,10 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort *cohort) {
 		cos.push_back(cohort);
 		return cos;
 	}
-	foreach (r, cohort->readings) {
+	for (auto r : cohort->readings) {
 		size_t pos = std::numeric_limits<size_t>::max();
 		Reading *prev = NULL; // prev == NULL || prev->next == rNew (or a ->next of rNew)
-		for (Reading *sub = (*r); sub; sub = sub->next) {
+		for (auto sub = r; sub; sub = sub->next) {
 			const Tag *wfTag = maybeWfTag(sub);
 			if (wfTag == NULL) {
 				prev = prev->next;
@@ -126,7 +126,7 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort *cohort) {
 
 				Reading *rNew = alloc_reading(*sub);
 				for (size_t i = 0; i < rNew->tags_list.size(); ++i) {
-					BOOST_AUTO(&tter, rNew->tags_list[i]);
+					auto& tter = rNew->tags_list[i];
 					if (tter == wfTag->hash || tter == rNew->parent->wordform->hash) {
 						rNew->tags_list.erase(rNew->tags_list.begin() + i);
 						rNew->tags.erase(tter);
@@ -155,9 +155,9 @@ std::vector<Cohort*> MweSplitApplicator::splitMwe(Cohort *cohort) {
 
 
 void MweSplitApplicator::printSingleWindow(SingleWindow *window, UFILE *output) {
-	boost_foreach (uint32_t var, window->variables_output) {
+	for (auto var : window->variables_output) {
 		Tag *key = single_tags[var];
-		BOOST_AUTO(iter, window->variables_set.find(var));
+		auto iter = window->variables_set.find(var);
 		if (iter != window->variables_set.end()) {
 			if (iter->second != grammar->tag_any) {
 				Tag *value = single_tags[iter->second];
@@ -183,8 +183,8 @@ void MweSplitApplicator::printSingleWindow(SingleWindow *window, UFILE *output) 
 	for (uint32_t c = 0; c < cs; c++) {
 		Cohort *cohort = window->cohorts[c];
 		std::vector<Cohort*> cs = splitMwe(cohort);
-		foreach (iter, cs) {
-			GrammarApplicator::printCohort(*iter, output);
+		for (auto iter : cs) {
+			GrammarApplicator::printCohort(iter, output);
 		}
 	}
 	u_fputc('\n', output);

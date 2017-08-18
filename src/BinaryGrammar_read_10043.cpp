@@ -30,7 +30,7 @@ namespace CG3 {
 static std::vector<ContextualTest*> contexts_list;
 static Grammar::contexts_t templates;
 
-int BinaryGrammar::readBinaryGrammar_10043(FILE *input) {
+int BinaryGrammar::readBinaryGrammar_10043(std::istream& input) {
 	if (!input) {
 		u_fprintf(ux_stderr, "Error: Input is null - cannot read from nothing!\n");
 		CG3Quit(1);
@@ -130,6 +130,12 @@ int BinaryGrammar::readBinaryGrammar_10043(FILE *input) {
 		if (fields & (1 << 7)) {
 			fread_throw(&i32tmp, sizeof(int32_t), 1, input);
 			t->comparison_val = (int32_t)ntohl(i32tmp);
+			if (t->comparison_val <= std::numeric_limits<int32_t>::min()) {
+				t->comparison_val = NUMERIC_MIN;
+			}
+			if (t->comparison_val >= std::numeric_limits<int32_t>::max()) {
+				t->comparison_val = NUMERIC_MAX;
+			}
 		}
 
 		if (fields & (1 << 8)) {
@@ -318,10 +324,10 @@ int BinaryGrammar::readBinaryGrammar_10043(FILE *input) {
 	}
 
 	// Actually assign sets to the varstring tags now that sets are loaded
-	foreach (iter, tag_varsets) {
-		Tag *t = grammar->single_tags_list[iter->first];
-		foreach (uit, iter->second) {
-			Set *s = grammar->sets_list[*uit];
+	for (auto iter : tag_varsets) {
+		Tag *t = grammar->single_tags_list[iter.first];
+		for (auto uit : iter.second) {
+			Set *s = grammar->sets_list[uit];
 			t->vs_sets->push_back(s);
 		}
 	}
@@ -468,9 +474,9 @@ int BinaryGrammar::readBinaryGrammar_10043(FILE *input) {
 	}
 
 	// Bind the named templates to where they are used
-	foreach (it, deferred_tmpls) {
-		BOOST_AUTO(tmt, templates.find(it->second));
-		it->first->tmpl = tmt->second;
+	for (auto it : deferred_tmpls) {
+		auto tmt = templates.find(it.second);
+		it.first->tmpl = tmt->second;
 	}
 
 	ucnv_close(conv);
@@ -480,7 +486,7 @@ int BinaryGrammar::readBinaryGrammar_10043(FILE *input) {
 	return 0;
 }
 
-ContextualTest *BinaryGrammar::readContextualTest_10043(FILE *input) {
+ContextualTest *BinaryGrammar::readContextualTest_10043(std::istream& input) {
 	ContextualTest *t = grammar->allocateContextualTest();
 	uint32_t fields = 0;
 	uint32_t u32tmp = 0;

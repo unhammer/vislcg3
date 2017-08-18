@@ -51,6 +51,8 @@ UnicodeString g_flags[FLAGS_COUNT] = {
 	UNICODE_STRING_SIMPLE("OUTPUT"),
 	UNICODE_STRING_SIMPLE("CAPTURE_UNIF"),
 	UNICODE_STRING_SIMPLE("REPEAT"),
+	UNICODE_STRING_SIMPLE("BEFORE"),
+	UNICODE_STRING_SIMPLE("AFTER"),
 };
 
 UnicodeString keywords[KEYWORD_COUNT] = {
@@ -116,8 +118,8 @@ UnicodeString keywords[KEYWORD_COUNT] = {
 	UNICODE_STRING_SIMPLE("SPLITCOHORT"),
 };
 
-const UChar _S_SET_ISECT_U[] = { L'\u2229', 0 };
-const UChar _S_SET_SYMDIFF_U[] = { L'\u2206', 0 };
+constexpr UChar _S_SET_ISECT_U[] = { L'\u2229', 0 };
+constexpr UChar _S_SET_SYMDIFF_U[] = { L'\u2206', 0 };
 
 UnicodeString stringbits[STRINGS_COUNT] = {
 	UNICODE_STRING_SIMPLE("__CG3_DUMMY_STRINGBIT__"),
@@ -195,6 +197,8 @@ UnicodeString stringbits[STRINGS_COUNT] = {
 	UNICODE_STRING_SIMPLE("strict-wordforms"),
 	UNICODE_STRING_SIMPLE("strict-baseforms"),
 	UNICODE_STRING_SIMPLE("strict-secondary"),
+	UNICODE_STRING_SIMPLE("strict-regex"),
+	UNICODE_STRING_SIMPLE("strict-icase"),
 	UNICODE_STRING_SIMPLE("<STREAMCMD:SETVAR:"),
 	UNICODE_STRING_SIMPLE("<STREAMCMD:REMVAR:"),
 };

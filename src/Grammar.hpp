@@ -56,7 +56,7 @@ public:
 	std::vector<Set*> sets_list;
 	SetSet sets_all;
 	uint32FlatHashMap sets_by_name;
-	typedef stdext::hash_map<UString, uint32_t> set_name_seeds_t;
+	typedef std::unordered_map<UString, uint32_t, hash_ustring> set_name_seeds_t;
 	set_name_seeds_t set_name_seeds;
 	Setuint32HashMap sets_by_contents;
 	uint32FlatHashMap set_alias;
@@ -70,15 +70,15 @@ public:
 	typedef TagSortedVector icase_tags_t;
 	icase_tags_t icase_tags;
 
-	typedef stdext::hash_map<uint32_t, ContextualTest*> contexts_t;
+	typedef std::unordered_map<uint32_t, ContextualTest*> contexts_t;
 	contexts_t templates;
 	contexts_t contexts;
 
-	typedef stdext::hash_map<uint32_t, uint32IntervalVector> rules_by_set_t;
+	typedef std::unordered_map<uint32_t, uint32IntervalVector> rules_by_set_t;
 	rules_by_set_t rules_by_set;
-	typedef stdext::hash_map<uint32_t, uint32IntervalVector> rules_by_tag_t;
+	typedef std::unordered_map<uint32_t, uint32IntervalVector> rules_by_tag_t;
 	rules_by_tag_t rules_by_tag;
-	typedef stdext::hash_map<uint32_t, boost::dynamic_bitset<> > sets_by_tag_t;
+	typedef std::unordered_map<uint32_t, boost::dynamic_bitset<> > sets_by_tag_t;
 	sets_by_tag_t sets_by_tag;
 
 	uint32IntervalVector *rules_any;
@@ -143,7 +143,8 @@ public:
 	void contextAdjustTarget(ContextualTest*);
 };
 
-inline void trie_unserialize(trie_t& trie, FILE *input, Grammar& grammar, uint32_t num_tags) {
+template<typename Stream>
+inline void _trie_unserialize(trie_t& trie, Stream& input, Grammar& grammar, uint32_t num_tags) {
 	for (uint32_t i = 0; i < num_tags; ++i) {
 		uint32_t u32tmp = 0;
 		fread_throw(&u32tmp, sizeof(uint32_t), 1, input);
@@ -164,6 +165,15 @@ inline void trie_unserialize(trie_t& trie, FILE *input, Grammar& grammar, uint32
 		}
 	}
 }
+
+inline void trie_unserialize(trie_t& trie, FILE *input, Grammar& grammar, uint32_t num_tags) {
+	return _trie_unserialize(trie, input, grammar, num_tags);
+}
+
+inline void trie_unserialize(trie_t& trie, std::istream& input, Grammar& grammar, uint32_t num_tags) {
+	return _trie_unserialize(trie, input, grammar, num_tags);
+}
+
 }
 
 #endif

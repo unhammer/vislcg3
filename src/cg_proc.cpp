@@ -253,7 +253,7 @@ int main(int argc, char *argv[]) {
 
 	grammar.ux_stderr = ux_stderr;
 
-	if (parser->parse_grammar_from_file(argv[optind], locale_default, codepage_default)) {
+	if (parser->parse_grammar(argv[optind], locale_default, codepage_default)) {
 		std::cerr << "Error: Grammar could not be parsed - exiting!" << std::endl;
 		CG3Quit(1);
 	}
@@ -300,9 +300,8 @@ int main(int argc, char *argv[]) {
 		buf[0] = 0;
 		buf[sn] = 0;
 		u_charsToUChars(single_rule, buf, sn);
-		foreach (riter, applicator->grammar->rule_by_number) {
-			const CG3::Rule *rule = *riter;
-			if (rule->name && u_strcmp(rule->name, buf) == 0) {
+		for (auto rule : applicator->grammar->rule_by_number) {
+			if (rule->name == buf) {
 				applicator->valid_rules.push_back(rule->number);
 			}
 		}

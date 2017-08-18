@@ -23,16 +23,16 @@
 #ifndef c6d28b7452ec699b_VERSION_H
 #define c6d28b7452ec699b_VERSION_H
 
-#include <stdint.h>
+#include <cstdint>
 
-const char *const CG3_COPYRIGHT_STRING = "Copyright (C) 2007-2017 GrammarSoft ApS. Licensed under GPLv3+";
+constexpr auto CG3_COPYRIGHT_STRING = "Copyright (C) 2007-2017 GrammarSoft ApS. Licensed under GPLv3+";
 
-const uint32_t CG3_VERSION_MAJOR = 0;
-const uint32_t CG3_VERSION_MINOR = 9;
-const uint32_t CG3_VERSION_PATCH = 9;
-const uint32_t CG3_REVISION = 11677;
-const uint32_t CG3_FEATURE_REV = 10575;
-const uint32_t CG3_TOO_OLD = 10373;
-const uint32_t CG3_EXTERNAL_PROTOCOL = 7226;
+constexpr uint32_t CG3_VERSION_MAJOR = 1;
+constexpr uint32_t CG3_VERSION_MINOR = 0;
+constexpr uint32_t CG3_VERSION_PATCH = 0;
+constexpr uint32_t CG3_REVISION = 12253;
+constexpr uint32_t CG3_FEATURE_REV = 12235;
+constexpr uint32_t CG3_TOO_OLD = 10373;
+constexpr uint32_t CG3_EXTERNAL_PROTOCOL = 7226;
 
 #endif

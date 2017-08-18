@@ -75,19 +75,19 @@ Cohort::~Cohort() {
 	std::cerr << "OBJECT: " << __PRETTY_FUNCTION__ << ": " << readings.size() << ", " << deleted.size() << ", " << delayed.size() << std::endl;
 	#endif
 
-	foreach (iter1, readings) {
-		delete (*iter1);
+	for (auto iter1 : readings) {
+		delete (iter1);
 	}
-	foreach (iter2, deleted) {
-		delete (*iter2);
+	for (auto iter2 : deleted) {
+		delete (iter2);
 	}
-	foreach (iter3, delayed) {
-		delete (*iter3);
+	for (auto iter3 : delayed) {
+		delete (iter3);
 	}
 	delete wread;
 
-	foreach (iter, removed) {
-		delete (*iter);
+	for (auto iter : removed) {
+		delete (iter);
 	}
 	if (parent) {
 		parent->parent->cohort_map.erase(global_number);
@@ -121,14 +121,14 @@ void Cohort::clear() {
 	relations.clear();
 	relations_input.clear();
 
-	foreach (iter1, readings) {
-		free_reading(*iter1);
+	for (auto iter1 : readings) {
+		free_reading(iter1);
 	}
-	foreach (iter2, deleted) {
-		free_reading(*iter2);
+	for (auto iter2 : deleted) {
+		free_reading(iter2);
 	}
-	foreach (iter3, delayed) {
-		free_reading(*iter3);
+	for (auto iter3 : delayed) {
+		free_reading(iter3);
 	}
 	free_reading(wread);
 
@@ -137,8 +137,8 @@ void Cohort::clear() {
 	delayed.clear();
 	wread = 0;
 
-	foreach (iter, removed) {
-		free_cohort(*iter);
+	for (auto iter : removed) {
+		free_cohort(iter);
 	}
 	removed.clear();
 	assert(enclosed.empty() && "Enclosed was not empty!");
@@ -186,8 +186,8 @@ void Cohort::updateMinMax() {
 	}
 	num_min.clear();
 	num_max.clear();
-	foreach (rter, readings) {
-		boost_foreach (Reading::tags_numerical_t::value_type& nter, (*rter)->tags_numerical) {
+	for (auto rter : readings) {
+		for (auto nter : rter->tags_numerical) {
 			const Tag *tag = nter.second;
 			if (num_min.find(tag->comparison_hash) == num_min.end() || tag->comparison_val < num_min[tag->comparison_hash]) {
 				num_min[tag->comparison_hash] = tag->comparison_val;
@@ -200,31 +200,31 @@ void Cohort::updateMinMax() {
 	type |= CT_NUM_CURRENT;
 }
 
-int32_t Cohort::getMin(uint32_t key) {
+double Cohort::getMin(uint32_t key) {
 	updateMinMax();
 	if (num_min.find(key) != num_min.end()) {
 		return num_min[key];
 	}
-	return std::numeric_limits<int32_t>::min();
+	return NUMERIC_MIN;
 }
 
-int32_t Cohort::getMax(uint32_t key) {
+double Cohort::getMax(uint32_t key) {
 	updateMinMax();
 	if (num_max.find(key) != num_max.end()) {
 		return num_max[key];
 	}
-	return std::numeric_limits<int32_t>::max();
+	return NUMERIC_MAX;
 }
 
 bool Cohort::addRelation(uint32_t rel, uint32_t cohort) {
-	BOOST_AUTO(&cohorts, relations[rel]);
+	auto& cohorts = relations[rel];
 	const size_t sz = cohorts.size();
 	cohorts.insert(cohort);
 	return (sz != cohorts.size());
 }
 
 bool Cohort::setRelation(uint32_t rel, uint32_t cohort) {
-	BOOST_AUTO(&cohorts, relations[rel]);
+	auto& cohorts = relations[rel];
 	if (cohorts.size() == 1 && cohorts.find(cohort) != cohorts.end()) {
 		return false;
 	}

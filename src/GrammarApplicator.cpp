@@ -94,7 +94,6 @@ GrammarApplicator::GrammarApplicator(UFILE *ux_err)
   , par_left_pos(0)
   , par_right_pos(0)
   , did_final_enclosure(false)
-  , tmpl_cntx_pos(0)
   , same_basic(0)
   , target(0)
   , mark(0)
@@ -129,10 +128,10 @@ GrammarApplicator::~GrammarApplicator() {
 }
 
 void GrammarApplicator::resetIndexes() {
-	boost_foreach (uint32FlatHashSet& sv, index_readingSet_yes) {
+	for (auto& sv : index_readingSet_yes) {
 		sv.clear();
 	}
-	boost_foreach (uint32FlatHashSet& sv, index_readingSet_no) {
+	for (auto& sv : index_readingSet_no) {
 		sv.clear();
 	}
 	index_regexp_yes.clear();
@@ -162,26 +161,30 @@ void GrammarApplicator::index() {
 		return;
 	}
 
+	// ToDo: Remove for real ordered mode
+	for (auto iter : single_tags) {
+		if (iter.second->type & T_REGEXP_LINE) {
+			ordered = true;
+		}
+	}
+
 	if (!grammar->before_sections.empty()) {
 		uint32IntervalVector& m = runsections[-1];
-		foreach (iter_rules, grammar->before_sections) {
-			const Rule *r = *iter_rules;
+		for (auto r : grammar->before_sections) {
 			m.insert(r->number);
 		}
 	}
 
 	if (!grammar->after_sections.empty()) {
 		uint32IntervalVector& m = runsections[-2];
-		foreach (iter_rules, grammar->after_sections) {
-			const Rule *r = *iter_rules;
+		for (auto r : grammar->after_sections) {
 			m.insert(r->number);
 		}
 	}
 
 	if (!grammar->null_section.empty()) {
 		uint32IntervalVector& m = runsections[-3];
-		foreach (iter_rules, grammar->null_section) {
-			const Rule *r = *iter_rules;
+		for (auto r : grammar->null_section) {
 			m.insert(r->number);
 		}
 	}
@@ -189,8 +192,7 @@ void GrammarApplicator::index() {
 	if (sections.empty()) {
 		int32_t smax = (int32_t)grammar->sections.size();
 		for (int32_t i = 0; i < smax; i++) {
-			foreach (iter_rules, grammar->rules) {
-				const Rule *r = *iter_rules;
+			for (auto r : grammar->rules) {
 				if (r->section < 0 || r->section > i) {
 					continue;
 				}
@@ -203,8 +205,7 @@ void GrammarApplicator::index() {
 		numsections = sections.size();
 		for (uint32_t n = 0; n < numsections; n++) {
 			for (uint32_t e = 0; e <= n; e++) {
-				foreach (iter_rules, grammar->rules) {
-					const Rule *r = *iter_rules;
+				for (auto r : grammar->rules) {
 					if (r->section != (int32_t)sections[e] - 1) {
 						continue;
 					}
@@ -217,16 +218,16 @@ void GrammarApplicator::index() {
 
 	if (!valid_rules.empty()) {
 		uint32IntervalVector vr;
-		foreach (iter, grammar->rule_by_number) {
-			if (valid_rules.contains((*iter)->line)) {
-				vr.push_back((*iter)->number);
+		for (auto iter : grammar->rule_by_number) {
+			if (valid_rules.contains(iter->line)) {
+				vr.push_back(iter->number);
 			}
 		}
 		valid_rules = vr;
 	}
 
-	const UChar local_utf_pattern[] = { ' ', '#', '%', 'u', '%', '0', '?', 'u', L'\u2192', '%', 'u', '%', '0', '?', 'u', 0 };
-	const UChar local_latin_pattern[] = { ' ', '#', '%', 'u', '%', '0', '?', 'u', '-', '>', '%', 'u', '%', '0', '?', 'u', 0 };
+	constexpr UChar local_utf_pattern[] = { ' ', '#', '%', 'u', '%', '0', '?', 'u', L'\u2192', '%', 'u', '%', '0', '?', 'u', 0 };
+	constexpr UChar local_latin_pattern[] = { ' ', '#', '%', 'u', '%', '0', '?', 'u', '-', '>', '%', 'u', '%', '0', '?', 'u', 0 };
 
 	span_pattern_utf = local_utf_pattern;
 	span_pattern_latin = local_latin_pattern;
@@ -297,16 +298,16 @@ Tag *GrammarApplicator::addTag(const UChar *txt, bool vstr) {
 	bool reflow = false;
 	if ((tag->type & T_REGEXP) && tag->tag[0] != '"' && tag->tag[0] != '<') {
 		if (grammar->regex_tags.insert(tag->regexp).second) {
-			foreach (titer, single_tags) {
-				if (titer->second->type & T_TEXTUAL) {
+			for (auto titer : single_tags) {
+				if (titer.second->type & T_TEXTUAL) {
 					continue;
 				}
-				foreach (iter, grammar->regex_tags) {
+				for (auto iter : grammar->regex_tags) {
 					UErrorCode status = U_ZERO_ERROR;
-					uregex_setText(*iter, titer->second->tag.c_str(), titer->second->tag.length(), &status);
+					uregex_setText(iter, titer.second->tag.c_str(), titer.second->tag.size(), &status);
 					if (status == U_ZERO_ERROR) {
-						if (uregex_find(*iter, -1, &status)) {
-							titer->second->type |= T_TEXTUAL;
+						if (uregex_find(iter, -1, &status)) {
+							titer.second->type |= T_TEXTUAL;
 							reflow = true;
 						}
 					}
@@ -316,14 +317,14 @@ Tag *GrammarApplicator::addTag(const UChar *txt, bool vstr) {
 	}
 	if ((tag->type & T_CASE_INSENSITIVE) && tag->tag[0] != '"' && tag->tag[0] != '<') {
 		if (grammar->icase_tags.insert(tag).second) {
-			foreach (titer, single_tags) {
-				if (titer->second->type & T_TEXTUAL) {
+			for (auto titer : single_tags) {
+				if (titer.second->type & T_TEXTUAL) {
 					continue;
 				}
-				foreach (iter, grammar->icase_tags) {
+				for (auto iter : grammar->icase_tags) {
 					UErrorCode status = U_ZERO_ERROR;
-					if (u_strCaseCompare(titer->second->tag.c_str(), titer->second->tag.length(), (*iter)->tag.c_str(), (*iter)->tag.length(), U_FOLD_CASE_DEFAULT, &status) == 0) {
-						titer->second->type |= T_TEXTUAL;
+					if (u_strCaseCompare(titer.second->tag.c_str(), titer.second->tag.size(), iter->tag.c_str(), iter->tag.size(), U_FOLD_CASE_DEFAULT, &status) == 0) {
+						titer.second->type |= T_TEXTUAL;
 						reflow = true;
 					}
 					if (status != U_ZERO_ERROR) {
@@ -357,12 +358,12 @@ void GrammarApplicator::printTrace(UFILE *output, uint32_t hit_by) {
 			}
 			u_fprintf(output, ")");
 		}
-		if (!trace_name_only || !r->name) {
+		if (!trace_name_only || r->name.empty()) {
 			u_fprintf(output, ":%u", r->line);
 		}
-		if (r->name) {
+		if (!r->name.empty()) {
 			u_fputc(':', output);
-			u_fprintf(output, "%S", r->name);
+			u_fprintf(output, "%S", r->name.c_str());
 		}
 	}
 	else {
@@ -392,20 +393,20 @@ void GrammarApplicator::printReading(const Reading *reading, UFILE *output, size
 	}
 
 	uint32SortedVector unique;
-	foreach (tter, reading->tags_list) {
-		if ((!show_end_tags && *tter == endtag) || *tter == begintag) {
+	for (auto tter : reading->tags_list) {
+		if ((!show_end_tags && tter == endtag) || tter == begintag) {
 			continue;
 		}
-		if (*tter == reading->baseform || *tter == reading->parent->wordform->hash) {
+		if (tter == reading->baseform || tter == reading->parent->wordform->hash) {
 			continue;
 		}
 		if (unique_tags) {
-			if (unique.find(*tter) != unique.end()) {
+			if (unique.find(tter) != unique.end()) {
 				continue;
 			}
-			unique.insert(*tter);
+			unique.insert(tter);
 		}
-		const Tag *tag = single_tags[*tter];
+		const Tag *tag = single_tags[tter];
 		if (tag->type & T_DEPENDENCY && has_dep && !dep_original) {
 			continue;
 		}
@@ -430,8 +431,8 @@ void GrammarApplicator::printReading(const Reading *reading, UFILE *output, size
 			}
 		}
 
-		const UChar local_utf_pattern[] = { ' ', '#', '%', 'u', L'\u2192', '%', 'u', 0 };
-		const UChar local_latin_pattern[] = { ' ', '#', '%', 'u', '-', '>', '%', 'u', 0 };
+		constexpr UChar local_utf_pattern[] = { ' ', '#', '%', 'u', L'\u2192', '%', 'u', 0 };
+		constexpr UChar local_latin_pattern[] = { ' ', '#', '%', 'u', '-', '>', '%', 'u', 0 };
 		const UChar *pattern = local_latin_pattern;
 		if (unicode_tags) {
 			pattern = local_utf_pattern;
@@ -466,18 +467,18 @@ void GrammarApplicator::printReading(const Reading *reading, UFILE *output, size
 	if (reading->parent->type & CT_RELATED) {
 		u_fprintf(output, " ID:%u", reading->parent->global_number);
 		if (!reading->parent->relations.empty()) {
-			foreach (miter, reading->parent->relations) {
-				boost_foreach (uint32_t siter, miter->second) {
-					u_fprintf(output, " R:%S:%u", grammar->single_tags.find(miter->first)->second->tag.c_str(), siter);
+			for (auto miter : reading->parent->relations) {
+				for (auto siter : miter.second) {
+					u_fprintf(output, " R:%S:%u", grammar->single_tags.find(miter.first)->second->tag.c_str(), siter);
 				}
 			}
 		}
 	}
 
 	if (trace) {
-		foreach (iter_hb, reading->hit_by) {
+		for (auto iter_hb : reading->hit_by) {
 			u_fputc(' ', output);
-			printTrace(output, *iter_hb);
+			printTrace(output, iter_hb);
 		}
 	}
 
@@ -490,7 +491,7 @@ void GrammarApplicator::printReading(const Reading *reading, UFILE *output, size
 }
 
 void GrammarApplicator::printCohort(Cohort *cohort, UFILE *output) {
-	const UChar ws[] = { ' ', '\t', 0 };
+	constexpr UChar ws[] = { ' ', '\t', 0 };
 
 	if (cohort->local_number == 0) {
 		goto removed;
@@ -505,11 +506,11 @@ void GrammarApplicator::printCohort(Cohort *cohort, UFILE *output) {
 	}
 	u_fprintf(output, "%S", cohort->wordform->tag.c_str());
 	if (cohort->wread) {
-		foreach (tter, cohort->wread->tags_list) {
-			if (*tter == cohort->wordform->hash) {
+		for (auto tter : cohort->wread->tags_list) {
+			if (tter == cohort->wordform->hash) {
 				continue;
 			}
-			const Tag *tag = single_tags[*tter];
+			const Tag *tag = single_tags[tter];
 			u_fprintf(output, " %S", tag->tag.c_str());
 		}
 	}
@@ -519,15 +520,15 @@ void GrammarApplicator::printCohort(Cohort *cohort, UFILE *output) {
 		mergeMappings(*cohort);
 	}
 
-	foreach (rter1, cohort->readings) {
-		printReading(*rter1, output);
+	for (auto rter1 : cohort->readings) {
+		printReading(rter1, output);
 	}
 	if (trace && !trace_no_removed) {
-		foreach (rter3, cohort->delayed) {
-			printReading(*rter3, output);
+		for (auto rter3 : cohort->delayed) {
+			printReading(rter3, output);
 		}
-		foreach (rter2, cohort->deleted) {
-			printReading(*rter2, output);
+		for (auto rter2 : cohort->deleted) {
+			printReading(rter2, output);
 		}
 	}
 
@@ -539,15 +540,15 @@ removed:
 		}
 	}
 
-	foreach (iter, cohort->removed) {
-		printCohort(*iter, output);
+	for (auto iter : cohort->removed) {
+		printCohort(iter, output);
 	}
 }
 
 void GrammarApplicator::printSingleWindow(SingleWindow *window, UFILE *output) {
-	boost_foreach (uint32_t var, window->variables_output) {
+	for (auto var : window->variables_output) {
 		Tag *key = single_tags[var];
-		BOOST_AUTO(iter, window->variables_set.find(var));
+		auto iter = window->variables_set.find(var);
 		if (iter != window->variables_set.end()) {
 			if (iter->second != grammar->tag_any) {
 				Tag *value = single_tags[iter->second];
@@ -600,11 +601,11 @@ void GrammarApplicator::pipeOutReading(const Reading *reading, std::ostream& out
 	}
 
 	uint32_t cs = 0;
-	foreach (tter, reading->tags_list) {
-		if (*tter == reading->baseform || *tter == reading->parent->wordform->hash) {
+	for (auto tter : reading->tags_list) {
+		if (tter == reading->baseform || tter == reading->parent->wordform->hash) {
 			continue;
 		}
-		const Tag *tag = single_tags.find(*tter)->second;
+		const Tag *tag = single_tags.find(tter)->second;
 		if (tag->type & T_DEPENDENCY && has_dep) {
 			continue;
 		}
@@ -612,11 +613,11 @@ void GrammarApplicator::pipeOutReading(const Reading *reading, std::ostream& out
 	}
 
 	writeRaw(ss, cs);
-	foreach (tter, reading->tags_list) {
-		if (*tter == reading->baseform || *tter == reading->parent->wordform->hash) {
+	for (auto tter : reading->tags_list) {
+		if (tter == reading->baseform || tter == reading->parent->wordform->hash) {
 			continue;
 		}
-		const Tag *tag = single_tags.find(*tter)->second;
+		const Tag *tag = single_tags.find(tter)->second;
 		if (tag->type & T_DEPENDENCY && has_dep) {
 			continue;
 		}
@@ -651,8 +652,8 @@ void GrammarApplicator::pipeOutCohort(const Cohort *cohort, std::ostream& output
 
 	uint32_t cs = cohort->readings.size();
 	writeRaw(ss, cs);
-	foreach (rter1, cohort->readings) {
-		pipeOutReading(*rter1, ss);
+	for (auto rter1 : cohort->readings) {
+		pipeOutReading(rter1, ss);
 	}
 	if (!cohort->text.empty()) {
 		writeUTF8String(ss, cohort->text);
@@ -831,11 +832,11 @@ void GrammarApplicator::pipeInSingleWindow(SingleWindow& window, Process& input)
 void GrammarApplicator::error(const char *str, const UChar *p) {
 	(void)p;
 	if (current_rule && current_rule->line) {
-		const UChar buf[] = { 'R', 'T', ' ', 'R', 'U', 'L', 'E', 0 };
+		constexpr UChar buf[] = { 'R', 'T', ' ', 'R', 'U', 'L', 'E', 0 };
 		u_fprintf(ux_stderr, str, buf, current_rule->line, buf);
 	}
 	else {
-		const UChar buf[] = { 'R', 'T', ' ', 'I', 'N', 'P', 'U', 'T', 0 };
+		constexpr UChar buf[] = { 'R', 'T', ' ', 'I', 'N', 'P', 'U', 'T', 0 };
 		u_fprintf(ux_stderr, str, buf, numLines, buf);
 	}
 }
@@ -843,11 +844,11 @@ void GrammarApplicator::error(const char *str, const UChar *p) {
 void GrammarApplicator::error(const char *str, const char *s, const UChar *p) {
 	(void)p;
 	if (current_rule && current_rule->line) {
-		const UChar buf[] = { 'R', 'T', ' ', 'R', 'U', 'L', 'E', 0 };
+		constexpr UChar buf[] = { 'R', 'T', ' ', 'R', 'U', 'L', 'E', 0 };
 		u_fprintf(ux_stderr, str, buf, s, current_rule->line, buf);
 	}
 	else {
-		const UChar buf[] = { 'R', 'T', ' ', 'I', 'N', 'P', 'U', 'T', 0 };
+		constexpr UChar buf[] = { 'R', 'T', ' ', 'I', 'N', 'P', 'U', 'T', 0 };
 		u_fprintf(ux_stderr, str, buf, s, numLines, buf);
 	}
 }
@@ -855,11 +856,11 @@ void GrammarApplicator::error(const char *str, const char *s, const UChar *p) {
 void GrammarApplicator::error(const char *str, const UChar *s, const UChar *p) {
 	(void)p;
 	if (current_rule && current_rule->line) {
-		const UChar buf[] = { 'R', 'T', ' ', 'R', 'U', 'L', 'E', 0 };
+		constexpr UChar buf[] = { 'R', 'T', ' ', 'R', 'U', 'L', 'E', 0 };
 		u_fprintf(ux_stderr, str, buf, s, current_rule->line, buf);
 	}
 	else {
-		const UChar buf[] = { 'R', 'T', ' ', 'I', 'N', 'P', 'U', 'T', 0 };
+		constexpr UChar buf[] = { 'R', 'T', ' ', 'I', 'N', 'P', 'U', 'T', 0 };
 		u_fprintf(ux_stderr, str, buf, s, numLines, buf);
 	}
 }
@@ -867,11 +868,11 @@ void GrammarApplicator::error(const char *str, const UChar *s, const UChar *p) {
 void GrammarApplicator::error(const char *str, const char *s, const UChar *S, const UChar *p) {
 	(void)p;
 	if (current_rule && current_rule->line) {
-		const UChar buf[] = { 'R', 'T', ' ', 'R', 'U', 'L', 'E', 0 };
+		constexpr UChar buf[] = { 'R', 'T', ' ', 'R', 'U', 'L', 'E', 0 };
 		u_fprintf(ux_stderr, str, buf, s, S, current_rule->line, buf);
 	}
 	else {
-		const UChar buf[] = { 'R', 'T', ' ', 'I', 'N', 'P', 'U', 'T', 0 };
+		constexpr UChar buf[] = { 'R', 'T', ' ', 'I', 'N', 'P', 'U', 'T', 0 };
 		u_fprintf(ux_stderr, str, buf, s, S, numLines, buf);
 	}
 }

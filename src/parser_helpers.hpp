@@ -69,7 +69,6 @@ Tag *parseTag(const UChar *to, const UChar *p, State& state) {
 			u_fflush(state.ux_stderr);
 		}
 
-		// ToDo: Implement META and VAR
 		if (tmp[0] == 'M' && tmp[1] == 'E' && tmp[2] == 'T' && tmp[3] == 'A' && tmp[4] == ':') {
 			tag->type |= T_META;
 			tmp += 5;
@@ -102,7 +101,7 @@ Tag *parseTag(const UChar *to, const UChar *p, State& state) {
 			size_t oldlength = length;
 
 			// Parse the suffixes r, i, v but max only one of each.
-			while (tmp[length - 1] == 'i' || tmp[length - 1] == 'r' || tmp[length - 1] == 'v') {
+			while (tmp[length - 1] == 'i' || tmp[length - 1] == 'r' || tmp[length - 1] == 'v' || tmp[length - 1] == 'l') {
 				if (!(tag->type & T_VARSTRING) && tmp[length - 1] == 'v') {
 					tag->type |= T_VARSTRING;
 					length--;
@@ -115,6 +114,12 @@ Tag *parseTag(const UChar *to, const UChar *p, State& state) {
 				}
 				if (!(tag->type & T_CASE_INSENSITIVE) && tmp[length - 1] == 'i') {
 					tag->type |= T_CASE_INSENSITIVE;
+					length--;
+					continue;
+				}
+				if (!(tag->type & T_REGEXP_LINE) && tmp[length - 1] == 'l') {
+					tag->type |= T_REGEXP;
+					tag->type |= T_REGEXP_LINE;
 					length--;
 					continue;
 				}
@@ -157,20 +162,31 @@ Tag *parseTag(const UChar *to, const UChar *p, State& state) {
 			state.error("%s: Error: Parsing tag %S resulted in an empty tag on line %u near `%S` - cannot continue!\n", tag->tag.c_str(), p);
 		}
 
-		foreach (iter, state.get_grammar()->regex_tags) {
+		// ToDo: Remove for real ordered mode
+		if (tag->type & T_REGEXP_LINE) {
+			constexpr UChar uu[] = { '_', '_', 0 };
+			constexpr UChar rx[] = { '(', '^', '|', '$', '|', ' ', '|', ' ', '.', '+', '?', ' ', ')', 0 }; // (^|$| | .+? )
+			size_t pos;
+			while ((pos = tag->tag.find(uu)) != UString::npos) {
+				tag->tag.replace(pos, 2, rx);
+				length += size(rx) - size(uu);
+			}
+		}
+
+		for (auto iter : state.get_grammar()->regex_tags) {
 			UErrorCode status = U_ZERO_ERROR;
-			uregex_setText(*iter, tag->tag.c_str(), tag->tag.length(), &status);
+			uregex_setText(iter, tag->tag.c_str(), tag->tag.size(), &status);
 			if (status != U_ZERO_ERROR) {
 				state.error("%s: Error: uregex_setText(parseTag) returned %s on line %u near `%S` - cannot continue!\n", u_errorName(status), p);
 			}
 			status = U_ZERO_ERROR;
-			if (uregex_matches(*iter, 0, &status)) {
+			if (uregex_matches(iter, 0, &status)) {
 				tag->type |= T_TEXTUAL;
 			}
 		}
-		foreach (iter, state.get_grammar()->icase_tags) {
+		for (auto iter : state.get_grammar()->icase_tags) {
 			UErrorCode status = U_ZERO_ERROR;
-			if (u_strCaseCompare(tag->tag.c_str(), tag->tag.length(), (*iter)->tag.c_str(), (*iter)->tag.length(), U_FOLD_CASE_DEFAULT, &status) == 0) {
+			if (u_strCaseCompare(tag->tag.c_str(), tag->tag.size(), iter->tag.c_str(), iter->tag.size(), U_FOLD_CASE_DEFAULT, &status) == 0) {
 				tag->type |= T_TEXTUAL;
 			}
 			if (status != U_ZERO_ERROR) {
@@ -183,6 +199,19 @@ Tag *parseTag(const UChar *to, const UChar *p, State& state) {
 		if (tag->tag[0] == '<' && tag->tag[length - 1] == '>') {
 			tag->parseNumeric();
 		}
+		/*
+		if (tag->tag[0] == '#') {
+			uint32_t dep_self = 0;
+			uint32_t dep_parent = 0;
+			if (u_sscanf(tag->tag.c_str(), "#%i->%i", &dep_self, &dep_parent) == 2 && dep_self != 0) {
+				tag->type |= T_DEPENDENCY;
+			}
+			constexpr UChar local_dep_unicode[] = { '#', '%', 'i', L'\u2192', '%', 'i', 0 };
+			if (u_sscanf_u(tag->tag.c_str(), local_dep_unicode, &dep_self, &dep_parent) == 2 && dep_self != 0) {
+				tag->type |= T_DEPENDENCY;
+			}
+		}
+		//*/
 
 		if (u_strcmp(tag->tag.c_str(), stringbits[S_ASTERIK].getTerminatedBuffer()) == 0) {
 			tag->type |= T_ANY;
@@ -299,9 +328,9 @@ Set *parseSet(const UChar *name, const UChar *p, State& state) {
 	}
 	Set *tmp = state.get_grammar()->getSet(sh);
 	if (!tmp) {
-		if (!state.strict_tags.empty()) {
+		if (!state.strict_tags.empty() || !state.list_tags.empty()) {
 			Tag *tag = parseTag(name, p, state);
-			if (state.strict_tags.count(tag->plain_hash)) {
+			if (state.strict_tags.count(tag->plain_hash) || state.list_tags.count(tag->plain_hash)) {
 				Set *ns = state.get_grammar()->allocateSet();
 				ns->line = state.get_grammar()->lines;
 				ns->setName(name);

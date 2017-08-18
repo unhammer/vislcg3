@@ -27,21 +27,34 @@
 
 namespace CG3 {
 
-int BinaryGrammar::readBinaryGrammar(FILE *input) {
-	if (!input) {
-		u_fprintf(ux_stderr, "Error: Input is null - cannot read from nothing!\n");
-		CG3Quit(1);
-	}
-	if (!grammar) {
-		u_fprintf(ux_stderr, "Error: No grammar provided - cannot continue!\n");
-		CG3Quit(1);
-	}
+int BinaryGrammar::parse_grammar(const UChar*, size_t) {
+	throw "UChar* interface doesn't make sense for binary grammars.";
+}
+int BinaryGrammar::parse_grammar(UString&) {
+	throw "UString interface doesn't make sense for binary grammars.";
+}
+
+int BinaryGrammar::parse_grammar(const std::string& buffer) {
+	return parse_grammar(buffer.c_str(), buffer.size());
+}
+
+int BinaryGrammar::parse_grammar(const char *buffer, size_t length) {
+	std::stringstream input;
+	input.write(buffer, length);
+	input.seekg(0);
+	return parse_grammar(input);
+}
+
+int BinaryGrammar::parse_grammar(std::istream& input) {
+	input.exceptions(std::ios::failbit | std::ios::eofbit | std::ios::badbit);
+
 	uint32_t fields = 0;
 	uint32_t u32tmp = 0;
 	int32_t i32tmp = 0;
 	uint8_t u8tmp = 0;
 	UErrorCode err = U_ZERO_ERROR;
 	UConverter *conv = ucnv_open("UTF-8", &err);
+	std::stringstream buffer;
 
 	if (fread_throw(&cbuffers[0][0], 1, 4, input) != 4) {
 		std::cerr << "Error: Error reading first 4 bytes from grammar!" << std::endl;
@@ -59,7 +72,7 @@ int BinaryGrammar::readBinaryGrammar(FILE *input) {
 			u_fprintf(ux_stderr, "Warning: Grammar revision is %u, but current format is %u or later. Please recompile the binary grammar with latest CG-3.\n", u32tmp, CG3_FEATURE_REV);
 			u_fflush(ux_stderr);
 		}
-		fseek(input, 0, SEEK_SET);
+		input.seekg(0);
 		return readBinaryGrammar_10043(input);
 	}
 	if (u32tmp < CG3_TOO_OLD) {
@@ -140,6 +153,20 @@ int BinaryGrammar::readBinaryGrammar(FILE *input) {
 		if (fields & (1 << 7)) {
 			fread_throw(&i32tmp, sizeof(int32_t), 1, input);
 			t->comparison_val = (int32_t)ntohl(i32tmp);
+			if (t->comparison_val <= std::numeric_limits<int32_t>::min()) {
+				t->comparison_val = NUMERIC_MIN;
+			}
+			if (t->comparison_val >= std::numeric_limits<int32_t>::max()) {
+				t->comparison_val = NUMERIC_MAX;
+			}
+		}
+		if (fields & (1 << 12)) {
+			char buf[sizeof(uint64_t)+ sizeof(int32_t)] = {};
+			fread_throw(&buf[0], sizeof(buf), 1, input);
+			buffer.str("");
+			buffer.clear();
+			buffer.write(buf, sizeof(buf));
+			t->comparison_val = readSwapped<double>(buffer);
 		}
 
 		if (fields & (1 << 8)) {
@@ -205,6 +232,7 @@ int BinaryGrammar::readBinaryGrammar(FILE *input) {
 				}
 			}
 		}
+		// 1 << 12 used earlier
 
 		grammar->single_tags[t->hash] = t;
 		grammar->single_tags_list[t->number] = t;
@@ -336,10 +364,10 @@ int BinaryGrammar::readBinaryGrammar(FILE *input) {
 	}
 
 	// Actually assign sets to the varstring tags now that sets are loaded
-	foreach (iter, tag_varsets) {
-		Tag *t = grammar->single_tags_list[iter->first];
-		foreach (uit, iter->second) {
-			Set *s = grammar->sets_list[*uit];
+	for (auto iter : tag_varsets) {
+		Tag *t = grammar->single_tags_list[iter.first];
+		for (auto uit : iter.second) {
+			Set *s = grammar->sets_list[uit];
 			t->vs_sets->push_back(s);
 		}
 	}
@@ -484,15 +512,15 @@ int BinaryGrammar::readBinaryGrammar(FILE *input) {
 	}
 
 	// Bind the templates to where they are used
-	foreach (it, deferred_tmpls) {
-		it->first->tmpl = grammar->contexts.find(it->second)->second;
+	for (auto it : deferred_tmpls) {
+		it.first->tmpl = grammar->contexts.find(it.second)->second;
 	}
 
 	// Bind the OR'ed contexts to where they are used
-	foreach (it, deferred_ors) {
-		it->first->ors.reserve(it->second.size());
-		foreach (orit, it->second) {
-			it->first->ors.push_back(grammar->contexts.find(*orit)->second);
+	for (auto it : deferred_ors) {
+		it.first->ors.reserve(it.second.size());
+		for (auto orit : it.second) {
+			it.first->ors.push_back(grammar->contexts.find(orit)->second);
 		}
 	}
 
@@ -500,7 +528,7 @@ int BinaryGrammar::readBinaryGrammar(FILE *input) {
 	return 0;
 }
 
-ContextualTest *BinaryGrammar::readContextualTest(FILE *input) {
+ContextualTest *BinaryGrammar::readContextualTest(std::istream& input) {
 	ContextualTest *t = grammar->allocateContextualTest();
 	uint32_t fields = 0;
 	uint32_t u32tmp = 0;
