@@ -135,9 +135,9 @@ void StreamApplicator::printReading(const Reading *reading, std::ostream& output
 		output << " ID:" << reading->parent->global_number;
 		// u_fprintf(output, " ID:%u", reading->parent->global_number);
 		if (!reading->parent->relations.empty()) {
-			foreach (miter, reading->parent->relations) {
-				boost_foreach (uint32_t siter, miter->second) {
-					output << " R:" << UnicodeString(grammar->single_tags.find(miter->first)->second->tag.c_str()) << ":" << siter;
+			for (auto miter : reading->parent->relations) {
+				for (auto siter : miter.second) {
+					output << " R:" << UnicodeString(grammar->single_tags.find(miter.first)->second->tag.c_str()) << ":" << siter;
 					// u_fprintf(output, " R:%S:%u", grammar->single_tags.find(miter->first)->second->tag.c_str(), siter);
 				}
 			}
@@ -225,9 +225,9 @@ removed:
 
 
 void StreamApplicator::printSingleWindow(SingleWindow *window, std::ostream& output) {
-	boost_foreach (uint32_t var, window->variables_output) {
+	for (auto var : window->variables_output) {
 		Tag *key = single_tags[var];
-		BOOST_AUTO(iter, window->variables_set.find(var));
+		auto iter = window->variables_set.find(var);
 		if (iter != window->variables_set.end()) {
 			if (iter->second != grammar->tag_any) {
 				Tag *value = single_tags[iter->second];
@@ -590,7 +590,7 @@ void StreamApplicator::runGrammarOnText(istream& input, std::ostream& output) {
 				cCohort->appendReading(cReading);
 			}
 			else {
-				BOOST_AUTO(iter, all_mappings.find(cReading));
+				auto iter = all_mappings.find(cReading);
 				if (iter != all_mappings.end()) {
 					while (iter->second.size() > 1) {
 						u_fprintf(ux_stderr, "Warning: Sub-reading mapping %S on line %u will be discarded.\n", iter->second.back()->tag.c_str(), numLines);
